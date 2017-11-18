@@ -190,6 +190,10 @@ struct system_desc_t;
 #include "darwin/hax_types_mac.h"
 #endif
 
+#ifdef __NetBSD__
+#include "netbsd/hax_types_netbsd.h"
+#endif
+
 #ifdef __WINNT__
 #include "windows/hax_types_windows.h"
 #endif
