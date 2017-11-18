@@ -31,50 +31,56 @@
 #ifndef HAX_DARWIN_HAX_MAC_H_
 #define HAX_DARWIN_HAX_MAC_H_
 
-#include <libkern/OSAtomic.h>
-#include <mach/mach_types.h>
-#include <IOKit/IOLib.h>
-#include <sys/conf.h>
-#include <miscfs/devfs/devfs.h>
-#include <sys/ioccom.h>
-#include <sys/errno.h>
-#include <kern/locks.h>
-#include <libkern/OSBase.h>
+#include <sys/param.h>
+#include <sys/types.h>
+#include <sys/mutex.h>
 
 #define HAX_RAM_ENTRY_SIZE 0x4000000
 
-/* Spinlock related definition */
-__attribute__((visibility("hidden"))) extern lck_grp_t *hax_lck_grp;
-__attribute__((visibility("hidden"))) extern lck_attr_t *hax_lck_attr;
-
-#define hax_spin_lock(_lock) lck_spin_lock(_lock)
-
-#define hax_spin_unlock(_lock) lck_spin_unlock(_lock)
-#define hax_spin_lock_alloa_initc() \
-        lck_spin_alloc_init(hax_lck_grp, hax_lck_attr)
-#define hax_spinlock_init(_lock) \
-        lck_spin_init(_lock, hax_lck_grp, hax_lck_attr)
+#define hax_spin_lock(_lock) mutex_spin_enter(_lock)
+#define hax_spin_unlock(_lock) mutex_spin_exit(_lock)
 
 static inline hax_spinlock *hax_spinlock_alloc_init(void)
 {
-    return lck_spin_alloc_init(hax_lck_grp, hax_lck_attr);
+    hax_splinlock *lock;
+
+    lock = hax_vmalloc(sizeof(hax_spinlock), 0);
+    if (!lock)
+       return NULL;
+
+    mutex_init(lock, MUTEX_DEFAULT, IPL_VM);
+
+    return lock;
 }
 
-#define hax_spinlock_free(_lock) lck_spin_free(_lock, hax_lck_grp)
+static inline void hax_spinlock_free(hax_splinlock *lock)
+{
+    mutex_destroy(lock);
 
-__attribute__((visibility("hidden"))) extern lck_grp_t *hax_mtx_grp;
-__attribute__((visibility("hidden"))) extern lck_attr_t *hax_mtx_attr;
+    hax_vfree(lock, sizeof(hax_spinlock))
+}
 
-#define hax_mutex_lock(_lock) lck_mtx_lock(_lock)
-#define hax_mutex_unlock(_lock) lck_mtx_unlock(_lock)
-#define hax_mutext_init(_lock) lck_mtx_init(_lcok, hax_mtx_grp, hax_mtx_attr)
+#define hax_mutex_lock(_lock) mutex_enter(_lock)
+#define hax_mutex_unlock(_lock) mutex_exit(_lock)
 
 static inline hax_mutex hax_mutex_alloc_init(void)
 {
-    return lck_mtx_alloc_init(hax_mtx_grp, hax_mtx_attr);
+    hax_mutex mut;
+
+    mut = (hax_mutex)hax_vmalloc(sizeof(mut), 0);
+    if (!mut)
+        return NULL;
+
+    mutex_init(lock, MUTEX_DEFAULT, IPL_NONE);
+
+    return lock;
 }
 
-#define hax_mutex_free(_lock) lck_mtx_free(_lock, hax_mtx_grp)
+static inline void hax_mutex_free(hax_mutex lock)
+{
+
+    lck_mtx_free(_lock, hax_mtx_grp);
+}
 
 static inline hax_rw_lock *hax_rwlock_alloc_init(void)
 {
@@ -122,12 +128,12 @@ static int hax_test_and_clear_bit(int bit, uint64_t *memory)
 
 static bool hax_cmpxchg32(uint32 old_val, uint32 new_val, volatile uint32 *addr)
 {
-    return OSCompareAndSwap(old_val, new_val, addr);
+    return atomic_cas_32(addr, old_val, new_val) == old_val;
 }
 
 static bool hax_cmpxchg64(uint64 old_val, uint64 new_val, volatile uint64 *addr)
 {
-    return OSCompareAndSwap64(old_val, new_val, addr);
+    return atomic_cas_64(addr, old_val, new_val) == old_val;
 }
 
 static inline int hax_notify_host_event(enum hax_notify_event event,
