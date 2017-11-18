@@ -91,7 +91,7 @@ struct per_cpu_data {
     struct hax_page    *vmxon_page;
     struct hax_page    *vmcs_page;
     struct vcpu_t      *current_vcpu;
-    paddr_t            other_vmcs;
+    hax_paddr_t            other_vmcs;
     cpuid_t            cpu_id;
     uint16             vmm_flag;
     uint16             nested;
@@ -173,9 +173,9 @@ void hax_clear_panic_log(struct vcpu_t *vcpu);
 vmx_error_t cpu_vmx_run(struct vcpu_t *vcpu, struct hax_tunnel *htun);
 int cpu_vmx_execute(struct vcpu_t *vcpu, struct hax_tunnel *htun);
 
-vmx_error_t vmptrld(paddr_t vmcs, struct vcpu_t *vcpu);
-vmx_error_t resume(paddr_t vmcs, struct vcpu_t *vcpu);
-vmx_error_t launch(paddr_t vmcs, struct vcpu_t *vcpu);
+vmx_error_t vmptrld(hax_paddr_t vmcs, struct vcpu_t *vcpu);
+vmx_error_t resume(hax_paddr_t vmcs, struct vcpu_t *vcpu);
+vmx_error_t launch(hax_paddr_t vmcs, struct vcpu_t *vcpu);
 
 extern struct hax_page *io_bitmap_page_a;
 extern struct hax_page *io_bitmap_page_b;

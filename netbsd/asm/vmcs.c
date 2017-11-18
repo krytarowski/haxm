@@ -145,7 +145,7 @@ uint64 get_cr3(void)
 }
 
 #ifdef __x86_64__
-static inline vmx_error_t vmx_vmxon_64(paddr_t addr)
+static inline vmx_error_t vmx_vmxon_64(hax_paddr_t addr)
 {
     vmx_error_t eflags = 0;
     asm volatile (
@@ -160,7 +160,7 @@ static inline vmx_error_t vmx_vmxon_64(paddr_t addr)
     return eflags & VMX_FAIL_MASK;
 }
 #else
-static inline vmx_error_t vmx_vmxon_32(paddr_t addr)
+static inline vmx_error_t vmx_vmxon_32(hax_paddr_t addr)
 {
     vmx_error_t eflags = 0;
 
@@ -251,7 +251,7 @@ vmx_error_t __vmxoff(void)
 }
 
 #ifdef __x86_64__
-static inline vmx_error_t vmx_vmclear_64(paddr_t address)
+static inline vmx_error_t vmx_vmclear_64(hax_paddr_t address)
 {
     vmx_error_t eflags = 0;
     asm volatile (
@@ -265,7 +265,7 @@ static inline vmx_error_t vmx_vmclear_64(paddr_t address)
     return eflags & VMX_FAIL_MASK;
 }
 #else
-static inline vmx_error_t vmx_vmclear_32(paddr_t addr)
+static inline vmx_error_t vmx_vmclear_32(hax_paddr_t addr)
 {
     vmx_error_t eflags = 0;
 
@@ -304,7 +304,7 @@ vmx_error_t __vmclear(uint64 addr)
 }
 
 #ifdef __x86_64__
-static inline vmx_error_t vmx_vmptrld_64(paddr_t addr)
+static inline vmx_error_t vmx_vmptrld_64(hax_paddr_t addr)
 {
     vmx_error_t eflags = 0;
     asm volatile (
@@ -318,7 +318,7 @@ static inline vmx_error_t vmx_vmptrld_64(paddr_t addr)
     return eflags & VMX_FAIL_MASK;
 }
 #else
-static inline vmx_error_t vmx_vmptrld_32(paddr_t addr)
+static inline vmx_error_t vmx_vmptrld_32(hax_paddr_t addr)
 {
     vmx_error_t eflags = 0;
 
@@ -338,7 +338,7 @@ static inline vmx_error_t vmx_vmptrld_32(paddr_t addr)
 }
 #endif
 
-vmx_error_t __vmptrld(paddr_t addr)
+vmx_error_t __vmptrld(hax_paddr_t addr)
 {
 #ifdef __x86_64__
     return (vmx_vmptrld_64(addr));
@@ -357,9 +357,9 @@ vmx_error_t __vmptrld(paddr_t addr)
 }
 
 #ifdef __x86_64__
-static inline paddr_t vmx_vmptrst_64(void)
+static inline hax_paddr_t vmx_vmptrst_64(void)
 {
-    paddr_t address;
+    hax_paddr_t address;
 
     asm volatile (
         "vmptrst %0"
@@ -370,9 +370,9 @@ static inline paddr_t vmx_vmptrst_64(void)
     return address;
 }
 #else
-static inline paddr_t vmx_vmptrst_32(void)
+static inline hax_paddr_t vmx_vmptrst_32(void)
 {
-    paddr_t address;
+    hax_paddr_t address;
 
     asm volatile (
         "vmptrst %0"
@@ -385,14 +385,14 @@ static inline paddr_t vmx_vmptrst_32(void)
 }
 #endif
 
-paddr_t __vmptrst(void)
+hax_paddr_t __vmptrst(void)
 {
 #ifdef __x86_64__
     return (vmx_vmptrst_64());
 #else
     if (is_compatible()) {
         /* Don't put anything between these lines! */
-        paddr_t address;
+        hax_paddr_t address;
         switch_to_64bit_mode();
         address = vmx_vmptrst_32();
         switch_to_compat_mode();

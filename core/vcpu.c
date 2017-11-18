@@ -231,7 +231,7 @@ void * vcpu_vmcs_va(struct vcpu_t *vcpu)
     return hax_page_va(vcpu->vmcs_page);
 }
 
-paddr_t vcpu_vmcs_pa(struct vcpu_t *vcpu)
+hax_paddr_t vcpu_vmcs_pa(struct vcpu_t *vcpu)
 {
     return hax_page_pa(vcpu->vmcs_page);
 }
@@ -1898,15 +1898,15 @@ static void vcpu_exit_fpu_state(struct vcpu_t *vcpu)
 }
 
 struct decode {
-    paddr_t gpa;
-    paddr_t value;
+    hax_paddr_t gpa;
+    hax_paddr_t value;
     uint8_t size;       // Operand/value size in bytes (1, 2, 4 or 8)
     uint8_t addr_size;  // Address size in bytes (2, 4 or 8)
     uint8_t opcode_dir;
     uint8_t reg_index;
-    vaddr_t va;         // Non-I/O GVA operand (e.g. in MOVS instructions)
-    paddr_t src_pa;
-    paddr_t dst_pa;
+    hax_vaddr_t va;         // Non-I/O GVA operand (e.g. in MOVS instructions)
+    hax_paddr_t src_pa;
+    hax_paddr_t dst_pa;
     uint8_t advance;
     bool    has_rep;    // Whether the instruction is prefixed with REP
 };
@@ -1984,9 +1984,9 @@ static bool qemu_support_fastmmio_extra(struct vcpu_t *vcpu)
     return vm->features & VM_FEATURES_FASTMMIO_EXTRA;
 }
 
-static bool is_mmio_address(struct vcpu_t *vcpu, paddr_t gpa)
+static bool is_mmio_address(struct vcpu_t *vcpu, hax_paddr_t gpa)
 {
-    paddr_t hpa;
+    hax_paddr_t hpa;
     if (vtlb_active(vcpu)) {
         hpa = hax_gpfn_to_hpa(vcpu->vm, gpa >> page_shift);
         // hax_gpfn_to_hpa() assumes hpa == 0 is invalid
@@ -2007,7 +2007,7 @@ static int vcpu_simple_decode(struct vcpu_t *vcpu, struct decode *dc)
 {
     uint64 cs_base = vcpu->state->_cs.base;
     uint64 rip = vcpu->state->_rip;
-    vaddr_t va;
+    hax_vaddr_t va;
     uint8 instr[INSTR_MAX_LEN] = {0};
     uint8 len = 0;
     bool has_modrm;          // Whether ModR/M byte is present
@@ -2272,8 +2272,8 @@ done_legacy_pf:
         }
         case 0xa4:    // MOVSB
         case 0xa5: {  // MOVSW, MOVSD, MOVSQ
-            vaddr_t src_va, dst_va;
-            paddr_t src_pa, dst_pa;
+            hax_vaddr_t src_va, dst_va;
+            hax_paddr_t src_pa, dst_pa;
             bool is_src_mmio, is_dst_mmio;
 
             has_modrm = false;
@@ -2624,10 +2624,10 @@ static int exit_exc_nmi(struct vcpu_t *vcpu, struct hax_tunnel *htun)
                 if (handle_vtlb(vcpu))
                     return HAX_RESUME;
 
-                paddr_t pa;
+                hax_paddr_t pa;
                 struct decode dec;
                 int ret;
-                vaddr_t cr2 = vmx(vcpu, exit_qualification).address;
+                hax_vaddr_t cr2 = vmx(vcpu, exit_qualification).address;
 
                 ret = vcpu_simple_decode(vcpu, &dec);
                 if (ret < 0) {
@@ -3320,7 +3320,7 @@ static int handle_string_io(struct vcpu_t *vcpu, exit_qualification_t *qual,
 {
     struct vcpu_state_t *state = vcpu->state;
     uint real_size, count, required_size;
-    vaddr_t start, rindex;
+    hax_vaddr_t start, rindex;
 
     htun->io._flags = 1;
 
@@ -3922,7 +3922,7 @@ static int exit_invalid_guest_state(struct vcpu_t *vcpu,
 static int exit_ept_misconfiguration(struct vcpu_t *vcpu,
                                      struct hax_tunnel *htun)
 {
-    paddr_t gpa;
+    hax_paddr_t gpa;
 #ifdef CONFIG_HAX_EPT2
     int ret;
 #endif  // CONFIG_HAX_EPT2
@@ -3947,7 +3947,7 @@ static int exit_ept_misconfiguration(struct vcpu_t *vcpu,
 static int exit_ept_violation(struct vcpu_t *vcpu, struct hax_tunnel *htun)
 {
     exit_qualification_t *qual = &vmx(vcpu, exit_qualification);
-    paddr_t gpa;
+    hax_paddr_t gpa;
     struct decode dec;
     int ret = 0;
 

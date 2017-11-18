@@ -213,7 +213,7 @@ static void vmread_cr(struct vcpu_t *vcpu)
     state->_cr4 = (cr4 & ~cr4_mask) | (state->_cr4 & cr4_mask);
 }
 
-vmx_error_t cpu_vmx_vmptrld(struct per_cpu_data *cpu_data, paddr_t vmcs,
+vmx_error_t cpu_vmx_vmptrld(struct per_cpu_data *cpu_data, hax_paddr_t vmcs,
                             struct vcpu_t *vcpu)
 {
     vmx_error_t r = __vmptrld(vmcs);
@@ -551,8 +551,8 @@ void hax_panic_log(struct vcpu_t *vcpu)
 uint32 load_vmcs(struct vcpu_t *vcpu, preempt_flag *flags)
 {
     struct per_cpu_data *cpu_data;
-    paddr_t vmcs_phy;
-    paddr_t curr_vmcs = VMCS_NONE;
+    hax_paddr_t vmcs_phy;
+    hax_paddr_t curr_vmcs = VMCS_NONE;
     vmx_error_t err = 0;
     uint64 fc_msr;
 
@@ -701,7 +701,7 @@ uint32 put_vmcs(struct vcpu_t *vcpu, preempt_flag *flags)
 {
     int cpu_id = hax_cpuid();
     struct per_cpu_data *cpu_data = hax_cpu_data[cpu_id];
-    paddr_t vmcs_phy;
+    hax_paddr_t vmcs_phy;
     vmx_error_t err = 0;
     vmx_error_t vmxoff_err = 0;
     if (vcpu && cpu_data->nested > 0) {

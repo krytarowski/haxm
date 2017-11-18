@@ -67,12 +67,12 @@ static inline uint64 pgmask(uint order)
 }
 
 // Merge page and offset into a single address, depending on order
-static paddr_t get_pageoffs(paddr_t p, paddr_t o, uint order)
+static hax_paddr_t get_pageoffs(hax_paddr_t p, hax_paddr_t o, uint order)
 {
     return ((~(uint64)0 << order) & p) | (~(~(uint64)0 << order) & o);
 }
 
-static paddr_t get_pagebase(vaddr_t p, uint order)
+static hax_paddr_t get_pagebase(hax_vaddr_t p, uint order)
 {
     return (~(uint64)0 << order) & p;
 }
@@ -120,7 +120,7 @@ typedef struct pte32 {
 
 static inline bool pte32_is_superlvl(uint lvl);
 
-static inline void pte32_set_address(pte32_t *entry, uint lvl, paddr_t addr,
+static inline void pte32_set_address(pte32_t *entry, uint lvl, hax_paddr_t addr,
                                      uint order)
 {
     if (pte32_is_superlvl(lvl)) {
@@ -226,14 +226,14 @@ static inline bool pte32_is_4M_page(pte32_t *entry, uint lvl)
     return pte32_is_superlvl(lvl) && entry->pde.ps;
 }
 
-static inline paddr_t pte32_get_address(pte32_t *entry, uint lvl,
-                                        paddr_t offset)
+static inline hax_paddr_t pte32_get_address(pte32_t *entry, uint lvl,
+                                        hax_paddr_t offset)
 {
     return get_pageoffs(entry->raw, offset, (pte32_is_superlvl(lvl) &&
                         entry->pde.ps) ? PG_ORDER_4M : PG_ORDER_4K);
 }
 
-static inline paddr_t pae_get_address(paddr_t entry, uint lvl, paddr_t offset)
+static inline hax_paddr_t pae_get_address(hax_paddr_t entry, uint lvl, hax_paddr_t offset)
 {
     return get_pageoffs(entry, offset, (pte32_is_superlvl(lvl) &&
                         (entry & 0x80)) ? PG_ORDER_2M : PG_ORDER_4K);
@@ -244,9 +244,9 @@ static inline uint pte32_get_idxbit(uint lvl)
     return 12 + 10 * lvl;
 }
 
-static inline paddr_t pte32_get_cr3_mask(void)
+static inline hax_paddr_t pte32_get_cr3_mask(void)
 {
-    return ~(paddr_t)0xfff;
+    return ~(hax_paddr_t)0xfff;
 }
 
 static inline uint pte32_get_idxmask(uint lvl)
@@ -254,12 +254,12 @@ static inline uint pte32_get_idxmask(uint lvl)
     return 0x3ff;
 }
 
-static inline uint pte32_get_idx(uint lvl, vaddr_t va)
+static inline uint pte32_get_idx(uint lvl, hax_vaddr_t va)
 {
     return (va >> pte32_get_idxbit(lvl)) & pte32_get_idxmask(lvl);
 }
 
-static inline uint pae_get_idx(uint lvl, vaddr_t va)
+static inline uint pae_get_idx(uint lvl, hax_vaddr_t va)
 {
     return (va >> (12 + 9 * lvl)) & 0x1ff;
 }
@@ -330,7 +330,7 @@ typedef struct pte64 {
     };
 } pte64_t;
 
-static inline void pte64_set_address(pte64_t *entry, paddr_t addr)
+static inline void pte64_set_address(pte64_t *entry, hax_paddr_t addr)
 {
     entry->pte.address = addr >> PG_ORDER_4K;
 }
@@ -396,7 +396,7 @@ static inline void pte64_set_caching(pte64_t *entry, bool pat, bool pcd,
     entry->pwt = pwt;
 }
 
-static inline void pte64_set_entry(pte64_t *entry, uint lvl, paddr_t addr,
+static inline void pte64_set_entry(pte64_t *entry, uint lvl, hax_paddr_t addr,
                                    bool us, bool w, bool x)
 {
     entry->raw &= 0xe00;
@@ -422,9 +422,9 @@ static inline uint pte64_get_order(uint lvl)
     return 12 + 9 * lvl;
 }
 
-static inline paddr_t pte64_get_cr3_mask(pte64_t *entry)
+static inline hax_paddr_t pte64_get_cr3_mask(pte64_t *entry)
 {
-    return ~(paddr_t)0x1f;
+    return ~(hax_paddr_t)0x1f;
 }
 
 static inline uint pte64_get_idxmask(uint lvl)
@@ -432,7 +432,7 @@ static inline uint pte64_get_idxmask(uint lvl)
     return 0x1ff;
 }
 
-static inline uint pte64_get_idx(uint lvl, vaddr_t va)
+static inline uint pte64_get_idx(uint lvl, hax_vaddr_t va)
 {
     return (va >> pte64_get_idxbit(lvl)) & pte64_get_idxmask(lvl);
 }

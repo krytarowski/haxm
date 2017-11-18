@@ -52,11 +52,11 @@ extern void asm_fxrstor(mword *addr);
 extern void asm_btr(uint8 *addr, uint bit);
 extern void asm_bts(uint8 *addr, uint bit);
 
-extern void asm_vmptrst(paddr_t *addr);
+extern void asm_vmptrst(hax_paddr_t *addr);
 
-paddr_t __vmptrst(void)
+hax_paddr_t __vmptrst(void)
 {
-    paddr_t address = 0;
+    hax_paddr_t address = 0;
     asm_vmptrst(&address);
     return address;
 }

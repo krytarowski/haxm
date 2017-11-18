@@ -101,12 +101,12 @@ void get_kernel_gdt(struct system_desc_t *sys_desc);
 void get_kernel_idt(struct system_desc_t *sys_desc);
 void __handle_cpuid(struct vcpu_state_t *state);
 
-vmx_error_t __vmxon(paddr_t addr);
+vmx_error_t __vmxon(hax_paddr_t addr);
 vmx_error_t __vmxoff(void);
 
-vmx_error_t __vmclear(paddr_t addr);
-vmx_error_t __vmptrld(paddr_t addr);
-paddr_t __vmptrst(void);
+vmx_error_t __vmclear(hax_paddr_t addr);
+vmx_error_t __vmptrld(hax_paddr_t addr);
+hax_paddr_t __vmptrst(void);
 
 uint64 vmx_vmread(struct vcpu_t *vcpu, component_index_t component);
 uint64 vmx_vmread_natural(struct vcpu_t *vcpu, component_index_t component);

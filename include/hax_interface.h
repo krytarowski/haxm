@@ -123,22 +123,22 @@ struct hax_tunnel {
             uint8_t _pad0;
             uint16_t _pad1;
             uint32_t _pad2;
-            vaddr_t _vaddr;
+            hax_vaddr_t _vaddr;
         } io;
         struct {
-            paddr_t gla;
+            hax_paddr_t gla;
         } mmio;
         struct {
-            paddr_t dummy;
+            hax_paddr_t dummy;
         } state;
     };
 } PACKED;
 
 struct hax_fastmmio {
-    paddr_t gpa;
+    hax_paddr_t gpa;
     union {
         uint64_t value;
-        paddr_t gpa2;  /* since API v4 */
+        hax_paddr_t gpa2;  /* since API v4 */
     };
     uint8_t size;
     uint8_t direction;

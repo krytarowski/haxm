@@ -65,8 +65,8 @@ typedef enum mmu_mode {
 typedef uint32 pagemode_t;
 
 typedef struct vtlb {
-    vaddr_t va;
-    paddr_t ha;
+    hax_vaddr_t va;
+    hax_paddr_t ha;
     uint64 flags;
     uint guest_order;
     uint order;
@@ -84,7 +84,7 @@ typedef struct hax_mmu {
     struct hax_page *hpd_page;
     struct hax_page *pde_page;
     struct hax_page *pde_shadow_page;
-    paddr_t pdir;
+    hax_paddr_t pdir;
     struct hax_link_list free_page_list;
     struct hax_link_list used_page_list;
     struct hax_link_list igo_page_list;
@@ -95,19 +95,19 @@ typedef struct hax_mmu {
 uint64 vtlb_get_cr3(struct vcpu_t *vcpu);
 
 void vcpu_invalidate_tlb(struct vcpu_t *vcpu, bool global);
-void vcpu_invalidate_tlb_addr(struct vcpu_t *vcpu, vaddr_t va);
+void vcpu_invalidate_tlb_addr(struct vcpu_t *vcpu, hax_vaddr_t va);
 
 uint vcpu_vtlb_alloc(struct vcpu_t *vcpu);
 void vcpu_vtlb_free(struct vcpu_t *vcpu);
 
 bool handle_vtlb(struct vcpu_t *vcpu);
 
-uint vcpu_translate(struct vcpu_t *vcpu, vaddr_t va, uint access, paddr_t *pa,
+uint vcpu_translate(struct vcpu_t *vcpu, hax_vaddr_t va, uint access, hax_paddr_t *pa,
                     uint64 *len, bool update);
 
-uint32 vcpu_read_guest_virtual(struct vcpu_t *vcpu, vaddr_t addr, void *dst,
+uint32 vcpu_read_guest_virtual(struct vcpu_t *vcpu, hax_vaddr_t addr, void *dst,
                                uint32 dst_buflen, uint32 size, uint flag);
-uint32 vcpu_write_guest_virtual(struct vcpu_t *vcpu, vaddr_t addr,
+uint32 vcpu_write_guest_virtual(struct vcpu_t *vcpu, hax_vaddr_t addr,
                                 uint32 dst_buflen, const void *src, uint32 size,
                                 uint flag);
 

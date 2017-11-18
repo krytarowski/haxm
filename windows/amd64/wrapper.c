@@ -55,11 +55,11 @@ extern uint64 __vmread(component_index_t component);
 extern uint64 asm_rdmsr(uint32 reg);
 extern void asm_wrmsr(uint32 reg, uint64 val);
 
-extern void asm_vmptrst(paddr_t *address);
+extern void asm_vmptrst(hax_paddr_t *address);
 
-paddr_t __vmptrst(void)
+hax_paddr_t __vmptrst(void)
 {
-    paddr_t address = 0;
+    hax_paddr_t address = 0;
     asm_vmptrst(&address);
     return address;
 }

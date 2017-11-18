@@ -557,7 +557,7 @@ void hax_unmap_gpfn(void *va)
 #endif
 }
 #else // !(defined(__MACH__) || defined(_WIN64))
-void * hax_map_gpfn(struct vm_t *vm, uint64 gpfn, bool flag, paddr_t gcr3,
+void * hax_map_gpfn(struct vm_t *vm, uint64 gpfn, bool flag, hax_paddr_t gcr3,
                     uint8 level)
 {
 #if defined(__MACH__) || defined(_WIN64)

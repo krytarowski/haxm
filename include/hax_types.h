@@ -201,8 +201,8 @@ struct system_desc_t;
 /* Common typedef for all platform */
 typedef uint64 hax_pa_t;
 typedef uint64 hax_pfn_t;
-typedef uint64 paddr_t;
-typedef uint64 vaddr_t;
+typedef uint64 hax_paddr_t;
+typedef uint64 hax_vaddr_t;
 
 extern int32 hax_page_size;
 
