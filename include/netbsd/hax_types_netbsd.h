@@ -39,25 +39,22 @@ typedef uint64_t hax_va_t;
 typedef uint32_t hax_size_t;
 
 #else
-#include <libkern/OSAtomic.h>
-#include <IOKit/IOLib.h>
-#include <sys/conf.h>
-#include <miscfs/devfs/devfs.h>
-#include <sys/ioccom.h>
-#include <sys/errno.h>
-#include <kern/locks.h>
-#include <libkern/OSBase.h>
+#include <sys/param.h>
+#include <sys/types.h>
+#include <sys/atomic.h>
+#include <sys/mutex.h>
+#include <sys/rwlock.h>
 
 #include "../hax_list.h"
 typedef uint64_t hax_va_t;
 typedef uint32_t hax_size_t;
 
 /* Spinlock releated definition */
-typedef lck_spin_t hax_spinlock;
-typedef lck_mtx_t* hax_mutex;
-typedef lck_rw_t hax_rw_lock;
+typedef kmutex_t* hax_spinlock;
+typedef kmutex_t* hax_mutex;
+typedef krwlock_t* hax_rw_lock;
 
-typedef SInt32 hax_atomic_t;
+typedef volatile uint32_t hax_atomic_t;
 
 // Signed Types
 typedef signed char         int8;
@@ -73,26 +70,25 @@ typedef unsigned long long  uint64;
 typedef unsigned long       ulong;
 
 /* return the value before the add */
-static signed int hax_atomic_add(hax_atomic_t *address, SInt32 amount)
+static signed int hax_atomic_add(hax_atomic_t *address, int32_t amount)
 {
-    return OSAddAtomic(amount, address);
+    return atomic_add_32_nv(address, amount) - amount;
 }
 
 /* return the value before the dec */
 static signed int hax_atomic_dec(hax_atomic_t *address)
 {
-    return OSDecrementAtomic(address);
+    return atomic_dec_32_nv(address) + 1;
 }
 
 /*
- * According to kernel programming, the Atomic function is barrier
- * Although we can write a smp_mb from scrach, this simple one can resolve our
- * issue
+ * All loads and stores preceding the memory barrier will complete and
+ * reach global visibility before any loads and stores after the memory
+ * barrier complete and reach global visibility.
  */
 static inline void smp_mb(void)
 {
-    SInt32 atom;
-    OSAddAtomic(1, &atom);
+    membar_sync();
 }
 
 struct IOBufferMemoryDescriptor;
