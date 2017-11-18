@@ -28,11 +28,11 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "../../../../core/include/types.h"
-#include "../../../../core/include/segments.h"
-#include "../../../../core/include/ia32.h"
-#include "../../../../core/include/vcpu.h"
-#include "../../../../include/hax.h"
+#include "../core/include/types.h"
+#include "../core/include/segments.h"
+#include "../core/include/ia32.h"
+#include "../core/include/vcpu.h"
+#include "../include/hax.h"
 
 mword get_cr0(void)
 {
