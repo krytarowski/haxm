@@ -262,6 +262,10 @@ int hax_em64t_enabled(void);
 #include "darwin/hax_mac.h"
 #endif
 
+#ifdef __NetBSD__
+#include "netbsd/hax_netbsd.h"
+#endif
+
 #ifdef __WINNT__
 #include "windows/hax_windows.h"
 #endif
