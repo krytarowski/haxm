@@ -106,14 +106,14 @@ void get_online_map(void *param)
 {
     uint64_t *omap;
 
-    //printf("%x\n", cpu_number());
+    //printf("%x\n", hax_cpu_number());
     omap = param;
     if (!omap) {
         hax_log_level(HAX_LOGE, "NULL pointer in get online map\n");
         return;
     }
 
-    hax_test_and_set_bit(cpu_number(), omap);
+    hax_test_and_set_bit(hax_cpu_number(), omap);
     printf("%llx\n ", *omap);
     return;
 }
