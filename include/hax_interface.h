@@ -43,6 +43,10 @@
 #include "darwin/hax_interface_mac.h"
 #endif
 
+#ifdef __NetBSD__
+#include "netbsd/hax_interface_netbsd.h"
+#endif
+
 #ifdef __WINNT__
 #include "windows/hax_interface_windows.h"
 #endif
