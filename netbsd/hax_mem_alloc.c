@@ -28,41 +28,42 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include <IOKit/IOLib.h>
-#include <IOKit/IOBufferMemoryDescriptor.h>
+#include <sys/param.h>
+#include <sys/types.h>
+#include <sys/malloc.h>
+#include <sys/kmem.h>
+
 #include "com_intel_hax.h"
 
 #define HAX_ALLOC_CHECK_FAIL NULL
 
-#define HAX_ALLOC_CHECK                                                 \
+#define HAX_ALLOC_CHECK()                                               \
     if (flags == 0)                                                     \
         flags |= HAX_MEM_NONPAGE;                                       \
     if ((flags & (HAX_MEM_NONPAGE | HAX_MEM_PAGABLE)) ==                \
         (HAX_MEM_NONPAGE | HAX_MEM_PAGABLE)) {                          \
         hax_log_level(HAX_LOGW, "Confilic flags for pageable\n");       \
         return HAX_ALLOC_CHECK_FAIL;                                    \
-    }                                                                   \
-    if (flags & HAX_MEM_NONBLOCK) {                                     \
-        hax_log_level(HAX_LOGE, "No nonblock allocation in mac now\n"); \
-        return HAX_ALLOC_CHECK_FAIL;                                    \
     }
 
 #define HAX_CACHE_ALIGNMENT 0x10
 
 /* XXX init to be 0? */
-extern "C" void * hax_vmalloc(uint32_t size, uint32_t flags)
+void * hax_vmalloc(uint32_t size, uint32_t flags)
 {
     void *buf = NULL;
-    HAX_ALLOC_CHECK
+    km_flag_t flag = 0;
+
+    HAX_ALLOC_CHECK();
 
     if (size == 0)
         return NULL;
 
     if (flags & HAX_MEM_PAGABLE)
-        buf = IOMallocPageable(size, HAX_CACHE_ALIGNMENT);
+        buf = malloc(size, HAX_CACHE_ALIGNMENT);
 
     if (flags & HAX_MEM_NONPAGE)
-        buf = IOMalloc(size);
+        buf = kmem_zalloc(size, KM_SLEEP);
 
     if (buf)
         memset(buf, 0, size);
