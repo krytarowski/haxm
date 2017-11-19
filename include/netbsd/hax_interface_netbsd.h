@@ -28,13 +28,14 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef HAX_DARWIN_HAX_INTERFACE_MAC_H_
-#define HAX_DARWIN_HAX_INTERFACE_MAC_H_
+#ifndef HAX_NETBSD_HAX_INTERFACE_NETBSD_H_
+#define HAX_NETBSD_HAX_INTERFACE_NETBSD_H_
 
-#include <mach/mach_types.h>
+#include <sys/param.h>
+#include <sys/types.h>
+#include <sys/ioctl.h>
+#include <sys/ioccom.h>
 
-/* The mac specific interface to qemu because of mac's
- * special handling like hax tunnel allocation etc */
 /* HAX model level ioctl */
 #define HAX_IOCTL_VERSION _IOWR(0, 0x20, struct hax_module_version)
 #define HAX_IOCTL_CREATE_VM _IOWR(0, 0x21, uint32_t)
@@ -73,4 +74,4 @@
 #define is_compatible() 0
 #endif
 
-#endif  // HAX_DARWIN_HAX_INTERFACE_MAC_H_
+#endif  // HAX_NETBSD_HAX_INTERFACE_NETBSD_H_
