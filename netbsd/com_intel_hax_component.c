@@ -32,6 +32,11 @@
  * Define the data structure and handling method for vm, vcpu
  */
 
+#include <sys/param.h>
+#include <sys/types.h>
+#include <sys/kauth.h>
+#include <sys/lwp.h>
+
 #include "com_intel_hax.h"
 
 struct hax_vcpu_mac * hax_vcpu_create_mac(struct vcpu_t *cvcpu, void *vm_host,
@@ -120,8 +125,8 @@ struct hax_vm_mac * hax_vm_create_mac(struct vm_t *cvm, int vm_id) {
     vm->vm_id = vm_id;
     vm->cvm = cvm;
     /* the owner is current thread's effective uid */
-    vm->owner = kauth_getuid();
-    vm->gowner = kauth_getgid();
+    vm->owner = kauth_cred_geteuid(curlwp->l_cred);
+    vm->gowner = kauth_cred_getegid(curlwp->l_cred);
     set_vm_host(cvm, vm);
     return vm;
 }
