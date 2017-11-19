@@ -121,7 +121,7 @@ void hax_fxsave(mword *addr)
     asm_fxsave(addr);
 }
 
-void fxrstor(mword *addr)
+void hax_fxrstor(mword *addr)
 {
     asm_fxrstor(addr);
 }

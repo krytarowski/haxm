@@ -1880,7 +1880,7 @@ static void vcpu_enter_fpu_state(struct vcpu_t *vcpu)
 
     if (vcpu->is_fpu_used) {
         hax_fxsave((mword *)hfx);
-        fxrstor((mword *)gfx);
+        hax_fxrstor((mword *)gfx);
     }
 }
 
@@ -1893,7 +1893,7 @@ static void vcpu_exit_fpu_state(struct vcpu_t *vcpu)
 
     if (vcpu->is_fpu_used) {
         hax_fxsave((mword *)gfx);
-        fxrstor((mword *)hfx);
+        hax_fxrstor((mword *)hfx);
     }
 }
 

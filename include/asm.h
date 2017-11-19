@@ -79,7 +79,7 @@ uint64 rdtsc(void);
 
 void hax_fxinit(void);
 void hax_fxsave(mword *addr);
-void fxrstor(mword *addr);
+void hax_fxrstor(mword *addr);
 
 void btr(uint8 *addr, uint bit);
 void bts(uint8 *addr, uint bit);

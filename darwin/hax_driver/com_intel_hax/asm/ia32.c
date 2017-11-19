@@ -353,7 +353,7 @@ void hax_fxsave(unsigned long *addr)
     );
 }
 
-void fxrstor(unsigned long *addr)
+void hax_fxrstor(unsigned long *addr)
 {
     asm volatile (
         "fxrstor %0"
