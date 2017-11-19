@@ -111,7 +111,7 @@ uint64 rdtsc(void)
     return asm_rdtsc();
 }
 
-void fxinit(void)
+void hax_fxinit(void)
 {
     asm_fxinit();
 }

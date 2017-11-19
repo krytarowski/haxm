@@ -87,7 +87,7 @@ uint64 rdtsc(void)
     return ((uint64)(val.low) | (uint64)(val.high) << 32);
 }
 
-void fxinit(void)
+void hax_fxinit(void)
 {
     asm_fxinit();
 }
