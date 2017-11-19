@@ -44,7 +44,7 @@
 struct vcpu_t;
 struct vcpu_state_t;
 
-typedef uint32 cpuid_t;  // CPU identifier
+typedef uint32 hax_cpuid_t;  // CPU identifier
 
 #define NR_HMSR 6
 
@@ -92,7 +92,7 @@ struct per_cpu_data {
     struct hax_page    *vmcs_page;
     struct vcpu_t      *current_vcpu;
     hax_paddr_t            other_vmcs;
-    cpuid_t            cpu_id;
+    hax_cpuid_t            cpu_id;
     uint16             vmm_flag;
     uint16             nested;
     mword              host_cr4_vmxe;
