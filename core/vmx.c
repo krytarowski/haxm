@@ -30,7 +30,7 @@
 
 #include "include/ia32.h"
 #include "include/vmx.h"
-#include <string.h>
+//#include <string.h>
 #include "include/cpu.h"
 #include "include/vcpu.h"
 #include "include/ept.h"
