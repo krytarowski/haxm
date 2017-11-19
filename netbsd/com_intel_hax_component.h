@@ -57,20 +57,20 @@ struct hax_vcpu_mac {
     gid_t gowner;
 };
 
-__private_extern__
+__attribute__((visibility("hidden")))
 struct hax_vcpu_mac * hax_vcpu_create_mac(struct vcpu_t *cvcpu, void *vm_host,
                                           int vm_id, int vcpu_id);
 
-__private_extern__
+__attribute__((visibility("hidden")))
 void hax_vcpu_destroy_mac(struct hax_vcpu_mac *vcpu);
 
-__private_extern__
+__attribute__((visibility("hidden")))
 void hax_vm_destroy_mac(struct hax_vm_mac *vm);
 
-__private_extern__
+__attribute__((visibility("hidden")))
 struct hax_vm_mac * hax_vm_create_mac(struct vm_t *vm, int vm_id);
 
-__private_extern__
+__attribute__((visibility("hidden")))
 int hax_vcpu_destroy(struct vcpu_t *cvcpu, int dest_vm);
 
 static struct vcpu_t *mvcpu2cvcpu(struct hax_vcpu_mac *vcpu) {
@@ -79,4 +79,4 @@ static struct vcpu_t *mvcpu2cvcpu(struct hax_vcpu_mac *vcpu) {
     return vcpu->cvcpu;
 }
 
-#endif  // HAX_DARWIN_COM_INTEL_HAX_COMPONENT_H_
+#endif  // HAX_NETBSD_COM_INTEL_HAX_COMPONENT_H_

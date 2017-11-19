@@ -28,15 +28,15 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef HAX_DARWIN_COM_INTEL_HAX_UI_H_
-#define HAX_DARWIN_COM_INTEL_HAX_UI_H_
+#ifndef HAX_NETBSD_COM_INTEL_HAX_UI_H_
+#define HAX_NETBSD_COM_INTEL_HAX_UI_H_
 
 #include "com_intel_hax.h"
 
-__private_extern__
+__attribute__((visibility("hidden")))
 int com_intel_hax_init_ui(void);
 
-__private_extern__
+__attribute__((visibility("hidden")))
 int com_intel_hax_exit_ui(void);
 
 int hax_vcpu_destroy_ui(struct hax_vcpu_mac *vcpu);
@@ -45,4 +45,4 @@ int hax_vcpu_create_ui(struct hax_vcpu_mac *vcpu);
 int hax_vm_destroy_ui(struct hax_vm_mac *vm);
 int hax_vm_create_ui(struct hax_vm_mac *vm);
 
-#endif  // HAX_DARWIN_COM_INTEL_HAX_UI_H_
+#endif  // HAX_NETBSD_COM_INTEL_HAX_UI_H_
