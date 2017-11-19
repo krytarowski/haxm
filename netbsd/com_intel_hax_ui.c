@@ -32,9 +32,11 @@
 
 #include <sys/param.h>
 #include <sys/conf.h>
-#include <sys/device.h>
 #include <sys/kernel.h>
+#include <sys/lwp.h>
 #include <sys/module.h>
+#include <sys/proc.h>
+#include <sys/device.h>
 
 dev_type_open(hax_open);
 dev_type_close(hax_close);
@@ -236,12 +238,12 @@ int hax_vcpu_ioctl(dev_t self, u_long cmd, void *data, int flag,
         }
         default: {
             int pid;
-            char task_name[17];
+            char *prog_name;
 
-            pid = proc_pid(p);
-            proc_name(pid, task_name, sizeof(task_name));
+            pid = l->l_proc->p_pid;
+            prog_name = l->l_proc->p_comm;
             hax_error("Unknown vcpu ioctl 0x%lx, pid=%d ('%s')\n", cmd, pid,
-                      task_name);
+                      prog_name);
             //printf("set regs ioctl %lx get regs %lx", HAX_VCPU_SET_REGS,
             //       HAX_VCPU_GET_REGS);
             ret = ENOSYS;
@@ -281,7 +283,6 @@ static void hax_put_vcpu_mid(struct hax_vcpu_mac *vcpu)
 
 int hax_vcpu_destroy_ui(struct hax_vcpu_mac *vcpu)
 {
-    devfs_remove(vcpu->pnode);
     hax_put_vcpu_mid(vcpu);
     return 0;
 }
@@ -299,26 +300,6 @@ int hax_vcpu_create_ui(struct hax_vcpu_mac *vcpu)
         hax_error("No vcpu minor id left\n");
         return 0;
     }
-
-    /* See comments in hax_vm_create_ui() below */
-    if (version_major <= 16) {
-        snprintf(devfs_pathname, sizeof(devfs_pathname),
-                 HAX_VCPU_DEVFS_FMT_COMPAT, vcpu->vm_id, vcpu->vcpu_id);
-    } else {
-        snprintf(devfs_pathname, sizeof(devfs_pathname), HAX_VCPU_DEVFS_FMT,
-                 vcpu->vm_id, vcpu->vcpu_id);
-    }
-    /* Should the vcpu node in the corresponding vm directory */
-    pnode = devfs_make_node(makedev(hax_vcpu_major, minor_id), DEVFS_CHAR,
-                            vcpu->owner, vcpu->gowner, 0600, devfs_pathname);
-    if (NULL == pnode) {
-        hax_error("Failed to init the device, %s\n", devfs_pathname);
-        hax_put_vcpu_mid(vcpu);
-        return -1;
-    }
-    hax_info("%s: Created devfs node /dev/%s for vCPU #%d\n", __func__,
-             devfs_pathname, vcpu->vcpu_id);
-    vcpu->pnode = pnode;
 
     return 0;
 }
@@ -343,7 +324,7 @@ int hax_vm_close(dev_t self, int flags __unused, int mode __unused,
 {
     struct vm_t *cvm;
 
-    cvm = hax_get_vm(minor(dev), 1);
+    cvm = hax_get_vm(minor(self), 1);
     hax_log_level(HAX_LOGI, "Close VM\n");
     if (cvm) {
         /* put the ref get just now */
@@ -405,19 +386,19 @@ int hax_vm_ioctl(dev_t self, u_long cmd, void *data, int flag,
         }
         case HAX_VM_IOCTL_NOTIFY_QEMU_VERSION: {
             int pid;
-            /* MAXCOMLEN + 1 == 17 (see bsd/sys/param.h) */
-            char task_name[17];
+            char *prog_name;
+
             struct hax_qemu_version *info;
 
-            pid = proc_pid(p);
-            proc_name(pid, task_name, sizeof(task_name));
+            pid = l->l_proc->p_pid;
+            prog_name = l->l_proc->p_comm;
             /*
              * This message is informational, but hax_warning() makes sure it is
              * printed by default, which helps us identify QEMU PIDs, in case
              * we ever receive unknown ioctl()s from other processes.
              */
             hax_warning("%s: Got HAX_VM_IOCTL_NOTIFY_QEMU_VERSION, pid=%d"
-                        " ('%s')\n", __func__, pid, task_name);
+                        " ('%s')\n", __func__, pid, prog_name);
             info = (struct hax_qemu_version *)data;
 
             ret = hax_vm_set_qemuversion(cvm, info);
@@ -425,13 +406,13 @@ int hax_vm_ioctl(dev_t self, u_long cmd, void *data, int flag,
         }
         default: {
             int pid;
-            char task_name[17];
+            char *prog_name;
 
             ret = ENOSYS;
-            pid = proc_pid(p);
-            proc_name(pid, task_name, sizeof(task_name));
+            pid = l->l_proc->p_pid;
+            prog_name = l->l_proc->p_comm;
             hax_error("Unknown VM IOCTL 0x%lx, pid=%d ('%s')\n", cmd, pid,
-                      task_name);
+                      prog_name);
             break;
         }
     }
@@ -457,7 +438,6 @@ static struct cdevsw hax_vm_devsw = {
 
 int hax_vm_destroy_ui(struct hax_vm_mac *vm)
 {
-    devfs_remove(vm->pnode);
     return 0;
 }
 
@@ -504,13 +484,13 @@ int hax_ioctl(dev_t self __unused, u_long cmd, void *data, int flag,
 
         default: {
             int pid;
-            char task_name[17];
+            char *prog_name;
 
             ret = ENOSYS;
-            pid = proc_pid(p);
-            proc_name(pid, task_name, sizeof(task_name));
+            pid = l->l_proc->p_pid;
+            prog_name = l->l_proc->p_comm;
             hax_error("Unknown ioctl 0x%lx, pid=%d ('%s')\n", cmd, pid,
-                      task_name);
+                      prog_name);
             break;
         }
     }
@@ -556,7 +536,7 @@ int com_intel_hax_init_ui(void)
     /* The major should be verified and changed if needed to avoid
      * conflicts with other devices. */
 
-    if (devsw_attach("HAX", NULL, &hex_bmajor, &hax_devsw, &hex_cmajor)) {
+    if (devsw_attach("HAX", NULL, &hax_bmajor, &hax_devsw, &hax_cmajor)) {
         hax_log_level(HAX_LOGE, "Failed to alloc HAX major number\n");
         goto fin1;
     }
@@ -574,9 +554,9 @@ int com_intel_hax_init_ui(void)
     return 0;
 
 fin3:
-    devsw_detach(NULL, &hax_vm_cmajor);
+    devsw_detach(NULL, &hax_devsw);
 fin2:
-    devsw_detach(NULL, &hax_cmajor);
+    devsw_detach(NULL, &hax_devsw);
 fin1:
     return ENXIO;
 }
@@ -585,9 +565,9 @@ int com_intel_hax_exit_ui(void)
 {
     hax_log_level(HAX_LOGI, "Exit hax module\n");
 
-    devsw_detach(NULL, &hax_vcpu_cmajor);
-    devsw_detach(NULL, &hax_vm_cmajor);
-    devsw_detach(NULL, &hax_cmajor);
+    devsw_detach(NULL, &hax_devsw);
+    devsw_detach(NULL, &hax_devsw);
+    devsw_detach(NULL, &hax_devsw);
 
     return 0;
 }
