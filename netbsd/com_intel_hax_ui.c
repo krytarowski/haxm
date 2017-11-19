@@ -30,11 +30,16 @@
 
 #include "com_intel_hax.h"
 
-#include <libkern/version.h>
-#include <sys/proc.h>
+#include <sys/param.h>
+#include <sys/conf.h>
+#include <sys/device.h>
+#include <sys/kernel.h>
+#include <sys/module.h>
 
-/* Major version number of Darwin/XNU kernel */
-extern const int version_major;
+dev_type_open(hax_open);
+dev_type_close(hax_close);
+dev_type_ioctl(hax_ioctl);
+
 static int hax_vcpu_major = 0;
 
 /*
@@ -475,8 +480,8 @@ int hax_vm_destroy_ui(struct hax_vm_mac *vm)
     return 0;
 }
 
-static int hax_ioctl(dev_t dev, u_long cmd, caddr_t data, int flag,
-                     struct proc *p)
+static int hax_ioctl(dev_t self __unused, u_long cmd, void *data, int flag,
+                     struct lwp *l __unused)
 {
     int ret = 0;
 
@@ -508,7 +513,7 @@ static int hax_ioctl(dev_t dev, u_long cmd, caddr_t data, int flag,
             cvm = hax_create_vm(&vm_id);
             if (!cvm) {
                 hax_log_level(HAX_LOGE, "Failed to create the HAX VM\n");
-                ret = -ENOMEM;
+                ret = ENOMEM;
                 break;
             }
 
@@ -520,7 +525,7 @@ static int hax_ioctl(dev_t dev, u_long cmd, caddr_t data, int flag,
             int pid;
             char task_name[17];
 
-            ret = -ENOSYS;
+            ret = ENOSYS;
             pid = proc_pid(p);
             proc_name(pid, task_name, sizeof(task_name));
             hax_error("Unknown ioctl 0x%lx, pid=%d ('%s')\n", cmd, pid,
@@ -532,23 +537,33 @@ static int hax_ioctl(dev_t dev, u_long cmd, caddr_t data, int flag,
 }
 
 
-static int hax_open(dev_t dev, int flags, __unused int devtype,
-                    __unused struct proc *p)
+static int hax_open(dev_t dev __unused, int flags __unused, int mode __unused,
+                    struct lwp *l __unused)
 {
     hax_log_level(HAX_LOGI, "HAX module opened\n");
     return 0;
 }
 
-static int hax_close(__unused dev_t dev, __unused int flags,
-                     __unused int devtype, __unused struct proc *p)
+static int hax_close(dev_t self __unused, int flag __unused, int mode __unused,
+                     struct lwp *l __unused)
 {
     hax_log_level(HAX_LOGI, "hax_close\n");
     return (0);
 }
 
 static struct cdevsw hax_devsw = {
-    hax_open, hax_close, eno_rdwrt, eno_rdwrt, hax_ioctl, eno_stop, eno_reset,
-    NULL, eno_select, eno_mmap, eno_strat, NULL, NULL, D_TTY,
+    .d_open = hax_open,
+    .d_close = hax_close,
+    .d_read = noread,
+    .d_write = nowrite,
+    .d_ioctl = hax_ioctl,
+    .d_stop = nostop,
+    .d_tty = notty,
+    .d_poll = nopoll,
+    .d_mmap = nommap,
+    .d_kqfilter = nokqfilter,
+    .d_discard = nodiscard,
+    .d_flag = D_TTY,
 };
 
 static int hax_major = 0;
@@ -556,8 +571,14 @@ static void *pnode = NULL;
 
 int com_intel_hax_init_ui(void)
 {
-    hax_info("%s: XNU version_major=%d\n", __func__, version_major);
+    /* The major should be verified and changed if needed to avoid
+     * conflicts with other devices. */
+    int cmajor = 220, bmajor = -1;
 
+    if (devsw_attach("intel_hax", NULL, &bmajor, &hax_devsw, &cmajor))
+        return ENXIO;
+
+///
     hax_major = cdevsw_add(-1, &hax_devsw);
     if (hax_major < 0) {
         hax_log_level(HAX_LOGE, "Failed to alloc major number\n");
