@@ -110,14 +110,8 @@ void hax_disable_irq(void)
     x86_disable_intr();
 }
 
-#define QEMU_SIGNAL_SIGMASK  (sigmask(SIGINT) | sigmask(SIGTERM) |  \
-                              sigmask(SIGKILL) | sigmask(SIGALRM) | \
-                              sigmask(SIGIO) | sigmask(SIGHUP) |    \
-                              sigmask(SIGINT) | sigmask(SIGTERM))
-
 int proc_event_pending(struct vcpu_t *vcpu)
 {
-    int proc_id = proc_selfpid();
-    return (proc_issignal(proc_id, QEMU_SIGNAL_SIGMASK) ||
-            vcpu_event_pending(vcpu));
+    // XXX check whether signals are pending like in MacOSX
+    return vcpu_event_pending(vcpu);
 }
