@@ -28,17 +28,13 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-/* wrap not-memory hax interface to Mac function */
+/* wrap not-memory hax interface to NetBSD function */
 
-#include <mach/mach_types.h>
-#include <IOKit/IOLib.h>
+#include <machine/cpufunc.h>
 
-#include <libkern/libkern.h>
-#include <stdarg.h>
-#include <sys/proc.h>
-#include "../../../include/hax.h"
+#include "../include/hax.h"
 
-extern "C" int vcpu_event_pending(struct vcpu_t *vcpu);
+int vcpu_event_pending(struct vcpu_t *vcpu);
 
 int default_hax_log_level = HAX_LOG_DEFAULT;
 
@@ -50,7 +46,7 @@ int default_hax_log_level = HAX_LOG_DEFAULT;
  * currently
  */
 
-extern "C" int hax_log_level(int level, const char *fmt, ...)
+int hax_log_level(int level, const char *fmt, ...)
 {
     va_list args;
     va_start(args, fmt);
@@ -68,9 +64,9 @@ struct smp_call_parameter {
     cpumap_t *cpus;
 };
 
-extern "C" void mp_rendezvous_no_intrs(void (*action_func)(void *), void *arg);
+void mp_rendezvous_no_intrs(void (*action_func)(void *), void *arg);
 
-extern "C" int hax_cpu_number(void);
+int hax_cpu_number(void);
 
 void smp_cfunction(void *param)
 {
@@ -88,7 +84,7 @@ void smp_cfunction(void *param)
         action(p->param);
 }
 
-extern "C" int smp_call_function(cpumap_t *cpus, void (*scfunc)(void *),
+int smp_call_function(cpumap_t *cpus, void (*scfunc)(void *),
                                  void *param)
 {
     struct smp_call_parameter sp;
@@ -99,19 +95,19 @@ extern "C" int smp_call_function(cpumap_t *cpus, void (*scfunc)(void *),
     return 0;
 }
 
-extern "C" uint32_t hax_cpuid()
+uint32_t hax_cpuid()
 {
     return hax_cpu_number();
 }
 
-extern "C" void hax_enable_irq(void)
+void hax_enable_irq(void)
 {
-    ml_set_interrupts_enabled(true);
+    x86_enable_intr();
 }
 
-extern "C" void hax_disable_irq(void)
+void hax_disable_irq(void)
 {
-    ml_set_interrupts_enabled(false);
+    x86_disable_intr();
 }
 
 #define QEMU_SIGNAL_SIGMASK  (sigmask(SIGINT) | sigmask(SIGTERM) |  \
@@ -119,7 +115,7 @@ extern "C" void hax_disable_irq(void)
                               sigmask(SIGIO) | sigmask(SIGHUP) |    \
                               sigmask(SIGINT) | sigmask(SIGTERM))
 
-extern "C" int proc_event_pending(struct vcpu_t *vcpu)
+int proc_event_pending(struct vcpu_t *vcpu)
 {
     int proc_id = proc_selfpid();
     return (proc_issignal(proc_id, QEMU_SIGNAL_SIGMASK) ||
