@@ -40,7 +40,13 @@ dev_type_open(hax_open);
 dev_type_close(hax_close);
 dev_type_ioctl(hax_ioctl);
 
-static int hax_vcpu_major = 0;
+dev_type_open(hax_vm_open);
+dev_type_close(hax_vm_close);
+dev_type_ioctl(hax_vm_ioctl);
+
+dev_type_open(hax_vcpu_open);
+dev_type_close(hax_vcpu_close);
+dev_type_ioctl(hax_vcpu_ioctl);
 
 /*
  * A tricky point of the vcpu/vm reference count:
@@ -74,12 +80,6 @@ static int hax_vcpu_major = 0;
 /* translate the vcpu device's device id to vcpu id */
 #define minor2vcpuid(dev) (minor(dev) & 0xfff)
 
-#define HAX_VCPU_DEVFS_FMT_COMPAT "hax_vm%02d*/vcpu%02d"
-#define HAX_VCPU_DEVFS_FMT        "hax_vm%02d/vcpu%02d"
-
-#define HAX_VM_DEVFS_FMT_COMPAT   "hax_vm*/vm%02d"
-#define HAX_VM_DEVFS_FMT          "hax_vm/vm%02d"
-
 static struct vcpu_t * get_vcpu_by_dev(dev_t dev) {
     int vm_id = minor2vcpuvmmid(dev);
     int vcpu_id = minor2vcpuid(dev);
@@ -87,16 +87,16 @@ static struct vcpu_t * get_vcpu_by_dev(dev_t dev) {
     return hax_get_vcpu(vm_id, vcpu_id, 1);
 }
 
-static int hax_vcpu_open(dev_t dev, int flags, __unused int devtype,
-                         __unused struct proc *p)
+int hax_vcpu_open(dev_t self, int flags __unused, int mode __unused,
+                         struct lwp *l __unused)
 {
     struct vcpu_t *cvcpu;
     int ret;
 
     hax_log_level(HAX_LOGD, "HAX vcpu open called\n");
-    cvcpu = get_vcpu_by_dev(dev);
+    cvcpu = get_vcpu_by_dev(self);
     if (!cvcpu)
-        return -ENODEV;
+        return ENODEV;
 
     ret = hax_vcpu_core_open(cvcpu);
     if (ret)
@@ -105,14 +105,14 @@ static int hax_vcpu_open(dev_t dev, int flags, __unused int devtype,
     return ret;
 }
 
-static int hax_vcpu_close(dev_t dev, int flags, __unused int devtype,
-                          __unused struct proc *p)
+int hax_vcpu_close(dev_t self, int flag __unused, int mode __unused,
+                          struct lwp *l __unused)
 {
     int ret = 0;
     struct vcpu_t *cvcpu;
     hax_log_level(HAX_LOGD, "HAX vcpu close called\n");
 
-    cvcpu = get_vcpu_by_dev(dev);
+    cvcpu = get_vcpu_by_dev(self);
 
     if (!cvcpu) {
         hax_error("Failed to find the vcpu, is it closed already? \n");
@@ -127,21 +127,21 @@ static int hax_vcpu_close(dev_t dev, int flags, __unused int devtype,
     return ret;
 }
 
-static int hax_vcpu_ioctl(dev_t dev, ulong cmd, caddr_t data, int flag,
-                          struct proc *p)
+int hax_vcpu_ioctl(dev_t self, u_long cmd, void *data, int flag,
+                          struct lwp *l __unused)
 {
     struct hax_vcpu_mac *vcpu;
     struct vcpu_t *cvcpu;
     int ret = 0;
 
-    cvcpu = get_vcpu_by_dev(dev);
+    cvcpu = get_vcpu_by_dev(self);
     if (!cvcpu)
-        return -ENODEV;
+        return ENODEV;
 
     vcpu = (struct hax_vcpu_mac *)get_vcpu_host(cvcpu);
     if (vcpu == NULL) {
         hax_put_vcpu(cvcpu);
-        return -ENODEV;
+        return ENODEV;
     }
 
     switch (cmd) {
@@ -191,7 +191,7 @@ static int hax_vcpu_ioctl(dev_t dev, ulong cmd, caddr_t data, int flag,
             msr = msrs->entries;
             if(msrs->nr_msr >= 0x20) {
                 hax_error("MSRS invalid!\n");
-                return -EFAULT;
+                return EFAULT;
             }
 
             for (i = 0; i < msrs->nr_msr; i++, msr++) {
@@ -244,7 +244,7 @@ static int hax_vcpu_ioctl(dev_t dev, ulong cmd, caddr_t data, int flag,
                       task_name);
             //printf("set regs ioctl %lx get regs %lx", HAX_VCPU_SET_REGS,
             //       HAX_VCPU_GET_REGS);
-            ret = -ENOSYS;
+            ret = ENOSYS;
             break;
         }
     }
@@ -253,9 +253,18 @@ static int hax_vcpu_ioctl(dev_t dev, ulong cmd, caddr_t data, int flag,
 }
 
 static struct cdevsw hax_vcpu_devsw = {
-    hax_vcpu_open, hax_vcpu_close, eno_rdwrt, eno_rdwrt, hax_vcpu_ioctl,
-    eno_stop, eno_reset, NULL, eno_select, eno_mmap, eno_strat, NULL, NULL,
-    D_TTY
+    .d_open = hax_vcpu_open,
+    .d_close = hax_vcpu_close,
+    .d_read = noread,
+    .d_write = nowrite,
+    .d_ioctl = hax_vcpu_ioctl,
+    .d_stop = nostop,
+    .d_tty = notty,
+    .d_poll = nopoll,
+    .d_mmap = nommap,
+    .d_kqfilter = nokqfilter,
+    .d_discard = nodiscard,
+    .d_flag = D_TTY
 };
 
 static int hax_get_vcpu_mid(struct hax_vcpu_mac *vcpu)
@@ -314,24 +323,23 @@ int hax_vcpu_create_ui(struct hax_vcpu_mac *vcpu)
     return 0;
 }
 
-static int hax_vm_major = 0;
-static int hax_vm_open(dev_t dev, int flags, __unused int devtype,
-                       __unused struct proc *p)
+int hax_vm_open(dev_t self, int flags __unused, int mode __unused,
+                       struct lwp *l __unused)
 {
     struct vm_t *cvm;
     int ret;
 
-    cvm = hax_get_vm(minor(dev), 1);
+    cvm = hax_get_vm(minor(self), 1);
     if (!cvm)
-        return -ENODEV;
+        return ENODEV;
     ret = hax_vm_core_open(cvm);
     hax_put_vm(cvm);
     hax_log_level(HAX_LOGI, "Open VM\n");
     return ret;
 }
 
-static int hax_vm_close(dev_t dev, int flags, __unused int devtype,
-                        __unused struct proc *p)
+int hax_vm_close(dev_t self, int flags __unused, int mode __unused,
+                        struct lwp *l __unused)
 {
     struct vm_t *cvm;
 
@@ -345,21 +353,21 @@ static int hax_vm_close(dev_t dev, int flags, __unused int devtype,
     return 0;
 }
 
-static int hax_vm_ioctl(dev_t dev, ulong cmd, caddr_t data, int flag,
-                        struct proc *p)
+int hax_vm_ioctl(dev_t self, u_long cmd, void *data, int flag,
+                        struct lwp *l __unused)
 {
     int ret = 0;
     struct vm_t *cvm;
     struct hax_vm_mac *vm_mac;
 
     //printf("vm ioctl %lx\n", cmd);
-    cvm = hax_get_vm(minor(dev), 1);
+    cvm = hax_get_vm(minor(self), 1);
     if (!cvm)
-        return -ENODEV;
+        return ENODEV;
     vm_mac = (struct hax_vm_mac *)get_vm_host(cvm);
     if (!vm_mac) {
         hax_put_vm(cvm);
-        return -ENODEV;
+        return ENODEV;
     }
 
     switch (cmd) {
@@ -374,7 +382,7 @@ static int hax_vm_ioctl(dev_t dev, ulong cmd, caddr_t data, int flag,
             if (!cvcpu) {
                 hax_error("Failed to create vcpu %x on vm %x\n", vcpu_id,
                           vm_id);
-                ret = -EINVAL;
+                ret = EINVAL;
                 hax_put_vm(cvm);
                 return ret;
             }
@@ -419,7 +427,7 @@ static int hax_vm_ioctl(dev_t dev, ulong cmd, caddr_t data, int flag,
             int pid;
             char task_name[17];
 
-            ret = -ENOSYS;
+            ret = ENOSYS;
             pid = proc_pid(p);
             proc_name(pid, task_name, sizeof(task_name));
             hax_error("Unknown VM IOCTL 0x%lx, pid=%d ('%s')\n", cmd, pid,
@@ -433,46 +441,19 @@ static int hax_vm_ioctl(dev_t dev, ulong cmd, caddr_t data, int flag,
 }
 
 static struct cdevsw hax_vm_devsw = {
-    hax_vm_open, hax_vm_close, eno_rdwrt, eno_rdwrt, hax_vm_ioctl, eno_stop,
-    eno_reset, NULL, eno_select, eno_mmap, eno_strat, NULL, NULL, D_TTY
+    .d_open = hax_vm_open,
+    .d_close = hax_vm_close,
+    .d_read = noread, 
+    .d_write = nowrite, 
+    .d_ioctl = hax_vm_ioctl,
+    .d_stop = nostop, 
+    .d_tty = notty, 
+    .d_poll = nopoll, 
+    .d_mmap = nommap, 
+    .d_kqfilter = nokqfilter, 
+    .d_discard = nodiscard, 
+    .d_flag = D_TTY
 };
-
-int hax_vm_create_ui(struct hax_vm_mac *vm)
-{
-    /* DEVMAXPATHSIZE == 128 (see bsd/miscfs/devfs/devfsdefs.h) */
-    char devfs_pathname[128];
-    void *pnode;
-
-    if (version_major <= 16) {
-        /* We are running on macOS 10.12 or older, whose implementation of
-         * devfs_make_node() eats the last character of every subdirectory along
-         * the given path, e.g. "hax_vm/vm01" would become "hax_v/vm01", hence
-         * the extra '*'. See also:
-         * https://lists.apple.com/archives/darwin-kernel/2007/Dec/msg00064.html
-         */
-        snprintf(devfs_pathname, sizeof(devfs_pathname),
-                 HAX_VM_DEVFS_FMT_COMPAT, vm->vm_id);
-    } else {
-        /* We are running on macOS 10.13 or newer, where the above-mentioned
-         * bug no longer exists.
-         * TODO: This may break in the future. A better solution is to avoid
-         * creating any subdirectories, but that requires userspace changes.
-         */
-        snprintf(devfs_pathname, sizeof(devfs_pathname), HAX_VM_DEVFS_FMT,
-                 vm->vm_id);
-    }
-    pnode = devfs_make_node(makedev(hax_vm_major, vm->vm_id), DEVFS_CHAR,
-                            vm->owner, vm->gowner, 0600, devfs_pathname);
-    if (NULL == pnode) {
-        hax_error("Failed to init the device %s\n", devfs_pathname);
-        cdevsw_remove(hax_vm_major, &hax_vm_devsw);
-        return -1;
-    }
-    hax_info("%s: Created devfs node /dev/%s for VM #%d\n", __func__,
-             devfs_pathname, vm->vm_id);
-    vm->pnode = pnode;
-    return 0;
-}
 
 int hax_vm_destroy_ui(struct hax_vm_mac *vm)
 {
@@ -480,7 +461,7 @@ int hax_vm_destroy_ui(struct hax_vm_mac *vm)
     return 0;
 }
 
-static int hax_ioctl(dev_t self __unused, u_long cmd, void *data, int flag,
+int hax_ioctl(dev_t self __unused, u_long cmd, void *data, int flag,
                      struct lwp *l __unused)
 {
     int ret = 0;
@@ -537,14 +518,14 @@ static int hax_ioctl(dev_t self __unused, u_long cmd, void *data, int flag,
 }
 
 
-static int hax_open(dev_t dev __unused, int flags __unused, int mode __unused,
+int hax_open(dev_t dev __unused, int flags __unused, int mode __unused,
                     struct lwp *l __unused)
 {
     hax_log_level(HAX_LOGI, "HAX module opened\n");
     return 0;
 }
 
-static int hax_close(dev_t self __unused, int flag __unused, int mode __unused,
+int hax_close(dev_t self __unused, int flag __unused, int mode __unused,
                      struct lwp *l __unused)
 {
     hax_log_level(HAX_LOGI, "hax_close\n");
@@ -566,93 +547,47 @@ static struct cdevsw hax_devsw = {
     .d_flag = D_TTY,
 };
 
-static int hax_major = 0;
-static void *pnode = NULL;
+static int hax_cmajor = 220, hax_bmajor = -1;
+static int hax_vm_cmajor = 221, hax_vm_bmajor = -1;
+static int hax_vcpu_cmajor = 222, hax_vcpu_bmajor = -1;
 
 int com_intel_hax_init_ui(void)
 {
     /* The major should be verified and changed if needed to avoid
      * conflicts with other devices. */
-    int cmajor = 220, bmajor = -1;
 
-    if (devsw_attach("intel_hax", NULL, &bmajor, &hax_devsw, &cmajor))
-        return ENXIO;
-
-///
-    hax_major = cdevsw_add(-1, &hax_devsw);
-    if (hax_major < 0) {
-        hax_log_level(HAX_LOGE, "Failed to alloc major number\n");
-        return -1;
+    if (devsw_attach("HAX", NULL, &hex_bmajor, &hax_devsw, &hex_cmajor)) {
+        hax_log_level(HAX_LOGE, "Failed to alloc HAX major number\n");
+        goto fin1;
     }
 
-    pnode = devfs_make_node(makedev(hax_major, 0), DEVFS_CHAR, 0, 0, 0666,
-                            "HAX", 0);
-
-    if (NULL == pnode) {
-        hax_error("Failed to init the device\n");
-        goto error;
+    if (devsw_attach("HAX VM", NULL, &hax_vm_bmajor, &hax_vm_devsw, &hax_vm_cmajor)) {
+        hax_log_level(HAX_LOGE, "Failed to alloc HAX VM major number\n");
+        goto fin2;
     }
 
-    if (hax_vm_major <= 0) {
-        hax_vm_major = cdevsw_add(-1, &hax_vm_devsw);
-        if (hax_vm_major < 0) {
-            hax_log_level(HAX_LOGE, "Failed to allocate VM major number\n");
-            goto error;
-        }
+    if (devsw_attach("HAX VCPU", NULL, &hax_vcpu_bmajor, &hax_vcpu_devsw, &hax_vcpu_cmajor)) {
+        hax_log_level(HAX_LOGE, "Failed to alloc HAX VCPU major number\n");
+        goto fin3;
     }
 
-    if (hax_vcpu_major <= 0) {
-        hax_vcpu_major = cdevsw_add(-1, &hax_vcpu_devsw);
-        if (hax_vcpu_major < 0) {
-            hax_log_level(HAX_LOGE, "Failed to allocate VCPU major number\n");
-            goto error;
-        }
-    }
     return 0;
 
-error:
-    if (hax_vcpu_major) {
-        cdevsw_remove(hax_vcpu_major, &hax_vcpu_devsw);
-        hax_vcpu_major = 0;
-    }
-    if (hax_vm_major) {
-        cdevsw_remove(hax_vm_major, &hax_vm_devsw);
-        hax_vm_major = 0;
-    }
-    if (pnode) {
-        devfs_remove(pnode);
-        pnode = NULL;
-    }
-    if (hax_major) {
-        cdevsw_remove(hax_major, &hax_devsw);
-        hax_major = 0;
-    }
-    return -1;
+fin3:
+    devsw_detach(NULL, &hax_vm_cmajor);
+fin2:
+    devsw_detach(NULL, &hax_cmajor);
+fin1:
+    return ENXIO;
 }
 
 int com_intel_hax_exit_ui(void)
 {
     hax_log_level(HAX_LOGI, "Exit hax module\n");
 
-    if (hax_vcpu_major) {
-        cdevsw_remove(hax_vcpu_major, &hax_vcpu_devsw);
-        hax_vcpu_major = 0;
-    }
-
-    if (hax_vm_major) {
-        cdevsw_remove(hax_vm_major, &hax_vm_devsw);
-        hax_vm_major = 0;
-    }
-
-    if (pnode) {
-        devfs_remove(pnode);
-        pnode = NULL;
-    }
-
-    if (hax_major) {
-        cdevsw_remove(hax_major, &hax_devsw);
-        hax_major = 0;
-    }
+    devsw_detach(NULL, &hax_vcpu_cmajor);
+    devsw_detach(NULL, &hax_vm_cmajor);
+    devsw_detach(NULL, &hax_cmajor);
 
     return 0;
 }
