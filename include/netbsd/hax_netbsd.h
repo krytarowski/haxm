@@ -28,8 +28,8 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef HAX_DARWIN_HAX_MAC_H_
-#define HAX_DARWIN_HAX_MAC_H_
+#ifndef HAX_NETBSD_HAX_NETBSD_H_
+#define HAX_NETBSD_HAX_NETBSD_H_
 
 #include <sys/param.h>
 #include <sys/types.h>
@@ -42,7 +42,7 @@
 
 static inline hax_spinlock *hax_spinlock_alloc_init(void)
 {
-    hax_splinlock *lock;
+    hax_spinlock *lock;
 
     lock = hax_vmalloc(sizeof(hax_spinlock), 0);
     if (!lock)
@@ -53,11 +53,11 @@ static inline hax_spinlock *hax_spinlock_alloc_init(void)
     return lock;
 }
 
-static inline void hax_spinlock_free(hax_splinlock *lock)
+static inline void hax_spinlock_free(hax_spinlock *lock)
 {
     mutex_destroy(lock);
 
-    hax_vfree(lock, sizeof(hax_spinlock))
+    hax_vfree(lock, sizeof(hax_spinlock));
 }
 
 #define hax_mutex_lock(_lock) mutex_enter(_lock)
@@ -65,11 +65,11 @@ static inline void hax_spinlock_free(hax_splinlock *lock)
 
 static inline hax_mutex hax_mutex_alloc_init(void)
 {
-    hax_mutex mut;
+    hax_mutex lock;
 
-    mut = (hax_mutex)hax_vmalloc(sizeof(mut), 0);
-    if (!mut)
-        return NULL;
+    lock = (hax_mutex)hax_vmalloc(sizeof(*lock), 0);
+    if (!lock)
+         return NULL;
 
     mutex_init(lock, MUTEX_DEFAULT, IPL_NONE);
 
@@ -78,52 +78,57 @@ static inline hax_mutex hax_mutex_alloc_init(void)
 
 static inline void hax_mutex_free(hax_mutex lock)
 {
+    mutex_destroy(lock);
 
-    lck_mtx_free(_lock, hax_mtx_grp);
+    hax_vfree(lock, sizeof(*lock));
 }
 
 static inline hax_rw_lock *hax_rwlock_alloc_init(void)
 {
-    return lck_rw_alloc_init(hax_lck_grp, hax_lck_attr);
+    hax_rw_lock *lock;
+
+    lock = (hax_rw_lock *)hax_vmalloc(sizeof(hax_rw_lock), 0);
+    if (!lock)
+        return NULL;
+
+    rw_init(lock);
+
+    return lock;
 }
 
-#define hax_rwlock_lock_read(lck) lck_rw_lock(lck, LCK_RW_TYPE_SHARED)
-#define hax_rwlock_unlock_read(lck) lck_rw_unlock(lck, LCK_RW_TYPE_SHARED)
-#define hax_rwlock_lock_write(lck) lck_rw_lock(lck, LCK_RW_TYPE_EXCLUSIVE)
-#define hax_rwlock_unlock_write(lck) lck_rw_unlock(lck, LCK_RW_TYPE_EXCLUSIVE)
-#define hax_rwlock_free(lck) lck_rw_free(lck, hax_lck_grp)
+#define hax_rwlock_lock_read(lck) rw_enter(lck, RW_READER)
+#define hax_rwlock_unlock_read(lck) rw_exit(lck)
+#define hax_rwlock_lock_write(lck) rw_enter(lck, RW_WRITER)
+#define hax_rwlock_unlock_write(lck) rw_exit(lck)
+
+static inline void hax_rwlock_free(hax_rw_lock *lock)
+{
+    rw_exit(lock);
+
+    hax_vfree(lock, sizeof(hax_rw_lock));
+}
 
 /* Don't care for the big endian situation */
 static bool hax_test_bit(int bit, uint64_t *memory)
 {
-    int byte = bit / 8;
-    unsigned char *p;
-    int offset = (bit % 8);
-
-    p = (unsigned char *)memory + byte;
-    return !!(*p & (0x1 << offset));
+    uint64_t bits = __BIT(bit);
+    return !!atomic_and_64_nv(memory, bits);
 }
 
 /* Return true if the bit is set already */
 static int hax_test_and_set_bit(int bit, uint64_t *memory)
 {
-    int byte = bit / 8 ;
-    unsigned char *p;
-    int offset = 7 - (bit % 8);
-
-    p = (unsigned char *)memory + byte;
-    return OSTestAndSet(offset, p);
+    uint64_t bits = __BIT(bit);
+    uint64_t old = *memory;
+    return atomic_or_64_nv(memory, bits) != old;
 }
 
 /* Return true if the bit is cleared already */
 static int hax_test_and_clear_bit(int bit, uint64_t *memory)
 {
-    int byte = bit / 8;
-    unsigned char *p;
-    int offset = 7 - (bit % 8);
-
-    p = (unsigned char *)memory + byte;
-    return OSTestAndClear(offset, p);
+    uint64_t bits = ~(__BIT(bit));          
+    uint64_t old = *memory; 
+    return atomic_and_64_nv(memory, bits) != old;
 }
 
 static bool hax_cmpxchg32(uint32 old_val, uint32 new_val, volatile uint32 *addr)
@@ -149,7 +154,7 @@ static inline int hax_notify_host_event(enum hax_notify_event event,
 //  https://stackoverflow.com/questions/40829032/how-to-install-c11-compiler-on-mac-os-with-optional-string-functions-included
 // Provide a simplified implementation here so memcpy_s() can be used instead of
 // memcpy() everywhere else, which helps reduce the number of Klocwork warnings.
-static inline errno_t memcpy_s(void *dest, size_t destsz, const void *src,
+static inline int memcpy_s(void *dest, size_t destsz, const void *src,
                                size_t count)
 {
     char *dest_start = (char *)dest;
@@ -215,4 +220,4 @@ static inline bool cpu_is_online(int cpu)
     return !!(((uint64_t)1 << cpu) & cpu_online_map);
 }
 
-#endif  // HAX_DARWIN_HAX_MAC_H_
+#endif  // HAX_NETBSD_HAX_NETBSD_H_
