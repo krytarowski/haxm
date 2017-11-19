@@ -28,10 +28,10 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "../../../../core/include/types.h"
-#include "../../../../core/include/compiler.h"
-#include "../../../../core/include/ia32.h"
-#include "../../../../include/hax.h"
+#include "../core/include/types.h"
+#include "../core/include/compiler.h"
+#include "../core/include/ia32.h"
+#include "../include/hax.h"
 
 void set_kernel_gdt(system_desc_t *sys_desc)
 {

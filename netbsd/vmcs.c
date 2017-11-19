@@ -28,11 +28,11 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "../../../../core/include/ia32.h"
-#include "../../../../core/include/vmx.h"
-#include "../../../../core/include/types.h"
-#include "../../../../include/hax.h"
-#include "../../../../core/include/vcpu.h"
+#include "../core/include/ia32.h"
+#include "../core/include/vmx.h"
+#include "../core/include/types.h"
+#include "../include/hax.h"
+#include "../core/include/vcpu.h"
 
 void hax_disable_preemption(preempt_flag *eflags)
 {
