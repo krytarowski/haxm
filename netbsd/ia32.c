@@ -344,7 +344,7 @@ uint64 rdtsc(void)
     return ((uint64)d << 32) | (uint64)a;
 }
 
-void fxsave(unsigned long *addr)
+void hax_fxsave(unsigned long *addr)
 {
     asm volatile (
         "fxsave %0"

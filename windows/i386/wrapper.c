@@ -92,7 +92,7 @@ void hax_fxinit(void)
     asm_fxinit();
 }
 
-void fxsave(mword *addr)
+void hax_fxsave(mword *addr)
 {
     asm_fxsave(addr);
 }

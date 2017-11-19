@@ -1879,7 +1879,7 @@ static void vcpu_enter_fpu_state(struct vcpu_t *vcpu)
     struct fx_layout *gfx = (struct fx_layout *)hax_page_va(gstate->gfxpage);
 
     if (vcpu->is_fpu_used) {
-        fxsave((mword *)hfx);
+        hax_fxsave((mword *)hfx);
         fxrstor((mword *)gfx);
     }
 }
@@ -1892,7 +1892,7 @@ static void vcpu_exit_fpu_state(struct vcpu_t *vcpu)
     struct fx_layout *gfx = (struct fx_layout *)hax_page_va(gstate->gfxpage);
 
     if (vcpu->is_fpu_used) {
-        fxsave((mword *)gfx);
+        hax_fxsave((mword *)gfx);
         fxrstor((mword *)hfx);
     }
 }

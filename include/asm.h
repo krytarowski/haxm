@@ -78,7 +78,7 @@ void ia32_wrmsr(uint32 reg, uint64 val);
 uint64 rdtsc(void);
 
 void hax_fxinit(void);
-void fxsave(mword *addr);
+void hax_fxsave(mword *addr);
 void fxrstor(mword *addr);
 
 void btr(uint8 *addr, uint bit);
