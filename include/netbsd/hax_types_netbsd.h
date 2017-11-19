@@ -49,6 +49,9 @@ typedef uint32_t hax_size_t;
 typedef uint64_t hax_va_t;
 typedef uint32_t hax_size_t;
 
+/* Remove this later */
+#define is_leaf(x)  1
+
 /* Spinlock releated definition */
 typedef kmutex_t hax_spinlock;
 typedef kmutex_t* hax_mutex;
