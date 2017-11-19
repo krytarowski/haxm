@@ -37,6 +37,10 @@
 
 #define HAX_RAM_ENTRY_SIZE 0x4000000
 
+#define page_size 4096
+#define page_shift 12
+#define page_mask 0xfff
+
 #define hax_spin_lock(_lock) mutex_spin_enter(_lock)
 #define hax_spin_unlock(_lock) mutex_spin_exit(_lock)
 
