@@ -78,7 +78,7 @@ static hax_paddr_t get_pagebase(hax_vaddr_t p, uint order)
 }
 
 #define INVALID_ADDR  ~(uint64)0
-#define INVALID_PFN   INVALID_ADDR
+#define INVALID_PFN   ((uint64)(~0ULL) >> 24) /* 40-bit field */
 
 typedef struct pte32 {
     union {
