@@ -28,8 +28,8 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef HAX_DARWIN_HAX_TYPES_MAC_H_
-#define HAX_DARWIN_HAX_TYPES_MAC_H_
+#ifndef HAX_NETBSD_HAX_TYPES_NETBSD_H_
+#define HAX_NETBSD_HAX_TYPES_NETBSD_H_
 
 #define CONFIG_KERNEL_HAX
 
@@ -50,24 +50,24 @@ typedef uint64_t hax_va_t;
 typedef uint32_t hax_size_t;
 
 /* Spinlock releated definition */
-typedef kmutex_t* hax_spinlock;
+typedef kmutex_t hax_spinlock;
 typedef kmutex_t* hax_mutex;
-typedef krwlock_t* hax_rw_lock;
+typedef krwlock_t hax_rw_lock;
 
 typedef volatile uint32_t hax_atomic_t;
 
 // Signed Types
-typedef signed char         int8;
-typedef signed short        int16;
-typedef signed int          int32;
-typedef signed long long    int64;
+typedef int8_t         int8;
+typedef int16_t        int16;
+typedef int32_t        int32;
+typedef int64_t        int64;
 
 // Unsigned Types
-typedef unsigned char       uint8;
-typedef unsigned short      uint16;
-typedef unsigned int        uint32;
-typedef unsigned long long  uint64;
-typedef unsigned long       ulong;
+typedef uint8_t         uint8;
+typedef uint16_t        uint16;
+typedef uint32_t        uint32;
+typedef uint64_t        uint64;
+typedef unsigned long   ulong;
 
 /* return the value before the add */
 static signed int hax_atomic_add(hax_atomic_t *address, int32_t amount)
@@ -143,4 +143,4 @@ inline cpumap_t cpu2cpumap(int cpu)
     return (0x1UL << cpu);
 }
 #endif  // CONFIG_KERNEL_HAX
-#endif  // HAX_DARWIN_HAX_TYPES_MAC_H_
+#endif  // HAX_NETBSD_HAX_TYPES_NETBSD_H_
