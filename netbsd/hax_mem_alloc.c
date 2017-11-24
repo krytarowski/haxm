@@ -143,11 +143,11 @@ vmalloc_tree_retrieve(const void *va)
     return flags;
 }
 
-/* XXX init to be 0? */
-void * hax_vmalloc(uint32_t size, uint32_t flags)
+void * hax_vmalloc_aligned(uint32_t size, uint32_t flags,
+                                      uint32_t alignment)
 {
     void *buf = NULL;
-    km_flag_t flag = 0;
+    uvm_flag_t flag = 0;
 
     HAX_ALLOC_CHECK();
 
@@ -155,37 +155,38 @@ void * hax_vmalloc(uint32_t size, uint32_t flags)
         return NULL;
 
     if (flags & HAX_MEM_PAGABLE)
-        buf = uvm_km_alloc(kernel_map, size, 0, UVM_KMF_PAGEABLE | UVM_KMF_ZERO);
+        flag = UVM_KMF_PAGEABLE;
+    else if (flags & HAX_MEM_NONPAGE)
+        flag = UVM_KMF_WIRED;
 
-    if (flags & HAX_MEM_NONPAGE)
-        buf = uvm_km_alloc(kernel_map, size, 0, UVM_KMF_WIRED | UVM_KMF_ZERO);
+    flag |= UVM_KMF_WAITVA;
+
+    buf = uvm_km_alloc(kernel_map, size, alignment, flag);
+
+    memset(buf, 0, size);
+
+    vmalloc_tree_insert(buf, flag);
 
     return buf;
 }
 
-void * hax_vmalloc_aligned(uint32_t size, uint32_t flags,
-                                      uint32_t alignment)
+void * hax_vmalloc(uint32_t size, uint32_t flags)
 {
-    void *buf = NULL;
-    HAX_ALLOC_CHECK();
-
-    if (flags & HAX_MEM_PAGABLE)
-        buf = uvm_km_alloc(kernel_map, size, alignment, UVM_KMF_PAGEABLE | UVM_KMF_ZERO);
-
-    if (flags & HAX_MEM_NONPAGE)
-        buf = uvm_km_alloc(kernel_map, size, alignment, UVM_KMF_WIRED | UVM_KMF_ZERO);
-
-    return buf;
+    return hax_vmalloc_aligned(size, 0. flags);
 }
 
 #undef HAX_ALLOC_CHECK_FAIL
 #define HAX_ALLOC_CHECK_FAIL
 
-void hax_vfree_flags(void *va, uint32_t size, uint32_t flags)
+void hax_vfree_flags(void *va, uint32_t size, uint32_t flags __unused)
 {
+    uvm_flag_t flag;
+
     HAX_ALLOC_CHECK();
 
-    uvm_km_free(kernel_map, va, size, flags);
+    flag = vmalloc_tree_retrieve(va);
+
+    uvm_km_free(kernel_map, va, size, flag);
 }
 
 void hax_vfree(void *va, uint32_t size)
@@ -195,18 +196,10 @@ void hax_vfree(void *va, uint32_t size)
     hax_vfree_flags(va, size, flags);
 }
 
-void hax_vfree_aligned(void *va, uint32_t size, uint32_t alignment,
+void hax_vfree_aligned(void *va, uint32_t size, uint32_t alignment __unused,
                                   uint32_t flags)
 {
-    HAX_ALLOC_CHECK();
-
-    if (flags & HAX_MEM_PAGABLE) {
-        IOFreePageable(va, size);
-        return;
-    }
-
-    if (flags & HAX_MEM_NONPAGE)
-        return IOFreeAligned(va, size);
+    hax_vfree_flags(kernel_map, va, size, flags);
 }
 
 struct hax_link_list _vmap_list;
