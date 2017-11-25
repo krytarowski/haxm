@@ -202,6 +202,52 @@ void hax_vfree_aligned(void *va, uint32_t size, uint32_t alignment __unused,
     hax_vfree_flags(kernel_map, va, size, flags);
 }
 
+/* We must cache flags passed to uvm_km_alloc(9) */
+struct pmalloc_pair_entry {
+    paddr_t    first;  /* paddr */
+    vaddr_t    second; /* vaddr */
+    rb_node_t pair_node;
+};
+
+static int
+pmalloc_compare_key(void *ctx, const paddr_t n1, const void *keyp)
+{
+    const paddr_t a1;
+    const paddr_t a2;
+
+    assert(a1);
+    assert(keyp);
+
+    a1 = ((struct pmalloc_pair_entry*)n1)->first;
+    a2 = (const paddr_t)keyp;
+
+    return a1 > a2;
+}
+
+static int
+pmalloc_compare_node(void *ctx, const void *n1, const void *n2)
+{
+    const paddr_t key2;
+
+    assert(n1);
+    assert(n2);
+    assert(((struct pmalloc_pair_entry*)n2)->first);
+
+    key2 = ((struct pmalloc_pair_entry*)n2)->first;
+
+    return pmalloc_compare_key(ctx, n1, key2);
+}
+
+static const rb_tree_ops_t pmalloc_tree_ops = {
+    .rbto_compare_nodes = pmalloc_compare_nodes,
+    .rbto_compare_key = pmalloc_compare_key,
+    .rbto_node_offset = offsetof(struct pmalloc_pair_entry, pair_node),
+    .rbto_context = NULL
+};
+
+rb_tree_t pmalloc_tree;
+kmutex_t pmalloc_tree_mut;
+
 struct hax_link_list _vmap_list;
 hax_spinlock *vmap_lock;
 struct _hax_vmap_entry {
