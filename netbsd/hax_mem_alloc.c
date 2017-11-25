@@ -234,7 +234,7 @@ pmalloc_compare_nodes(void *ctx, const void *n1, const void *n2)
 
     key2 = ((struct pmalloc_pair_entry*)n2)->first;
 
-    return pmalloc_compare_key(ctx, n1, key2);
+    return pmalloc_compare_key(ctx, n1, (void *)key2);
 }
 
 static const rb_tree_ops_t pmalloc_tree_ops = {
@@ -247,98 +247,86 @@ static const rb_tree_ops_t pmalloc_tree_ops = {
 rb_tree_t pmalloc_tree;
 kmutex_t pmalloc_tree_mut;
 
-struct hax_link_list _vmap_list;
-hax_spinlock *vmap_lock;
-struct _hax_vmap_entry {
-    struct hax_link_list list;
-    IOMemoryDescriptor *md;
-    IOMemoryMap *mm;
-    void *va;
-    uint32_t size;
-};
+static void
+pmalloc_tree_insert(const paddr_t pa, const vaddr_t va)
+{
+    struct pmalloc_pair_entry *pair, *opair;
+
+    KASSERT(pa);
+    KASSERT(va);
+
+    pair = kmem_alloc(sizeof(*pair), KM_SLEEP);
+    if (pair == NULL)
+        panic("kmem_alloc failed\n");
+
+    pair->first = pa;
+    pair->second = va;
+
+    mutex_enter(&pmalloc_tree_mut);
+    opair = rb_tree_insert_node(&pmalloc_tree, pair);
+    mutex_exit(&pmalloc_tree_mut);
+
+    if (opair != pair)
+        panic("Attempted to register duplicate entry key=%llx value=%llx "
+              "(okey=%llx ovalue=%llx)\n",
+              pair->first, pair->second, opair->first, opair->second);
+}
+
+vaddr_t
+pmalloc_tree_retrieve(const paddr_t pa)
+{
+    struct pmalloc_pair_entry *pair;
+    vaddr_t va;
+
+    mutex_enter(&pmalloc_tree_mut);
+    pair = rb_tree_find_node(&pmalloc_tree, (void *)pa);
+    if (pair == NULL)
+        panic("Attempted to find node key=%lx\n", (long)pa);
+
+    rb_tree_remove_node(&pmalloc_tree, pair);
+    mutex_exit(&pmalloc_tree_mut);
+
+    va = pair->second;
+
+    kmem_free(pair, sizeof(*pair));
+
+    return va;
+}
 
 void * hax_vmap(hax_pa_t pa, uint32_t size)
 {
-    IOMemoryDescriptor *md;
-    IOMemoryMap *mm;
-    struct _hax_vmap_entry *entry;
+    vaddr_t va;
 
-    entry = (struct _hax_vmap_entry *)hax_vmalloc(
-            sizeof(struct _hax_vmap_entry), 0);
-    if (entry == NULL) {
-        printf("Error to vmalloc the hax vmap entry\n");
-        return NULL;
-    }
-    entry->size = size;
+    va = uvm_km_alloc(kernel_map, size, 0, UVM_KMF_WIRED | UVM_KMF_WAITVA);
 
-    md = IOMemoryDescriptor::withPhysicalAddress(pa, size, kIODirectionOutIn);
-    if (md == NULL) {
-        hax_vfree(entry, 0);
-        return NULL;
-    }
-    entry->md = md;
+    pmap_kenter_pa(va, pa, VM_PROT_READ | VM_PROT_WRITE, PMAP_NOCACHE);
+    pmap_update(pmap_kernel());
 
-    mm = md->createMappingInTask(kernel_task, 0, kIOMapAnywhere, 0, size);
-    if (mm == NULL) {
-        hax_vfree(entry, 0);
-        md->release();
-        return NULL;
-    }
-    entry->mm = mm;
-    entry->va = (void *)(mm->getVirtualAddress());
+    pmalloc_tree_insert(va, pa);
 
-    hax_spin_lock(vmap_lock);
-    hax_list_add(&entry->list, &_vmap_list);
-    hax_spin_unlock(vmap_lock);
-
-    return entry->va;
+    return (void *)va;
 }
 
 void hax_vunmap(void *addr, uint32_t size)
 {
-    unsigned long va = (unsigned long)addr;
-    struct _hax_vmap_entry *entry, *n;
+    hax_pa_t pa;
 
-    hax_spin_lock(vmap_lock);
-    hax_list_entry_for_each_safe(entry, n, &_vmap_list, struct _hax_vmap_entry,
-                                 list) {
-        if ((entry->va == (void *)va) && (entry->size == size)) {
-            struct IOMemoryDescriptor *md = entry->md;
-            struct IOMemoryMap *mm = entry->mm;
-            hax_list_del(&entry->list);
-            hax_spin_unlock(vmap_lock);
-            md->complete();
-            mm->release();
-            md->release();
-            hax_vfree(entry, sizeof(struct _hax_vmap_entry));
-            return;
-        }
-    }
-    hax_spin_unlock(vmap_lock);
+    pa = pmalloc_tree_retrieve((paddr_t)addr);
 
-    printf("Failed to find the virtual address %lx\n", va);
+    pmap_remove(pmap_kernel(), pa, pa + size);
+    pmap_update(pmap_kernel());
+    uvm_km_free(kernel_map, (vaddr_t)addr, size, UVM_KMF_WIRED | UVM_KMF_WAITVA);
 }
 
 hax_pa_t hax_pa(void *va)
 {
-    uint64_t pa;
-    struct IOMemoryDescriptor *bmd;
+    bool success;
+    paddr_t pa;
 
-    /*
-     * Is 0x1 as length be correct method?
-     * But at least it works well on testing
-     */
-    bmd = IOMemoryDescriptor::withAddress(va, 0x1, kIODirectionNone);
-    if (!bmd) {
-        /*
-         * We need to handle better here. For example, crash QEMU and exit the
-         * module.
-         */
-        printf("NULL bmd in get_pa");
-        return -1;
-    }
-    pa = bmd->getPhysicalSegment(0, 0, kIOMemoryMapperNone);
-    bmd->release();
+    success = pmap_extract(pmap_kernel(), (vaddr_t)va, &pa);
+
+    KASSERT(success);
+
     return pa;
 }
 
@@ -434,13 +422,8 @@ void hax_set_page(struct hax_page *page)
 /* Initialize memory allocation related structures */
 int hax_malloc_init(void)
 {
-    /* vmap related */
-    hax_init_list_head(&_vmap_list);
-    vmap_lock = hax_spinlock_alloc_init();
-    if (!vmap_lock) {
-        hax_error("%s: Failed to allocate VMAP lock\n", __func__);
-        return -ENOMEM;
-    }
+    rb_tree_init(&pmalloc_tree, &pmalloc_tree_ops);
+    mutex_init(&pmalloc_tree_mut, MUTEX_DEFAULT, IPL_NONE);
 
     rb_tree_init(&vmalloc_tree, &vmalloc_tree_ops);
     mutex_init(&vmalloc_tree_mut, MUTEX_DEFAULT, IPL_NONE);
@@ -450,7 +433,6 @@ int hax_malloc_init(void)
 
 void hax_malloc_exit(void)
 {
-    hax_spinlock_free(vmap_lock);
-
     mutex_destroy(&vmalloc_tree_mut);
+    mutex_destroy(&pmalloc_tree_mut);
 }
