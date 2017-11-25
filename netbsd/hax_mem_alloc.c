@@ -33,6 +33,7 @@
 #include <sys/mutex.h>
 #include <sys/rbtree.h>
 #include <sys/systm.h>
+#include <sys/kmem.h>
 #include <uvm/uvm.h>
 
 #include "com_intel_hax.h"
@@ -63,23 +64,23 @@ vmalloc_compare_key(void *ctx, const void *n1, const void *keyp)
     const void *a1;
     const void *a2;
 
-    assert(a1);
-    assert(keyp);
+    KASSERT(n1);
+    KASSERT(keyp);
 
-    a1 = ((struct plist_pair_entry*)n1)->first;
+    a1 = ((struct vmalloc_pair_entry*)n1)->first;
     a2 = (const void *)keyp;
 
     return a1 > a2;
 }
 
 static int
-vmalloc_compare_node(void *ctx, const void *n1, const void *n2)
+vmalloc_compare_nodes(void *ctx, const void *n1, const void *n2)
 {
     const void *key2;
 
-    assert(n1);
-    assert(n2);
-    assert(((struct vmalloc_pair_entry*)n2)->first);
+    KASSERT(n1);
+    KASSERT(n2);
+    KASSERT(((struct vmalloc_pair_entry*)n2)->first);
 
     key2 = ((struct vmalloc_pair_entry*)n2)->first;
 
@@ -101,13 +102,13 @@ vmalloc_tree_insert(const void *va, const uvm_flag_t flags)
 {
     struct vmalloc_pair_entry *pair, *opair;
 
-    assert(va);
+    KASSERT(va);
 
     pair = kmem_alloc(sizeof(*pair), KM_SLEEP);
     if (pair == NULL)
         panic("kmem_alloc failed\n");
 
-    pair->first = va;
+    pair->first = __UNCONST(va);
     pair->second = flags;
 
     mutex_enter(&vmalloc_tree_mut);
@@ -129,9 +130,7 @@ vmalloc_tree_retrieve(const void *va)
     mutex_enter(&vmalloc_tree_mut);
     pair = rb_tree_find_node(&vmalloc_tree, va);
     if (pair == NULL)
-        panic("Attempted to register duplicate entry key=%p value=%llx "
-              "(okey=%p ovalue=%llx)\n",  
-              pair->first, pair->second, opair->first, opair->second);
+        panic("Attempted to find node key=%p\n", va);
 
     rb_tree_remove_node(&vmalloc_tree, pair);
     mutex_exit(&vmalloc_tree_mut);
@@ -161,7 +160,7 @@ void * hax_vmalloc_aligned(uint32_t size, uint32_t flags,
 
     flag |= UVM_KMF_WAITVA;
 
-    buf = uvm_km_alloc(kernel_map, size, alignment, flag);
+    buf = (void*)uvm_km_alloc(kernel_map, size, alignment, flag);
 
     memset(buf, 0, size);
 
@@ -172,7 +171,7 @@ void * hax_vmalloc_aligned(uint32_t size, uint32_t flags,
 
 void * hax_vmalloc(uint32_t size, uint32_t flags)
 {
-    return hax_vmalloc_aligned(size, 0. flags);
+    return hax_vmalloc_aligned(size, 0, flags);
 }
 
 #undef HAX_ALLOC_CHECK_FAIL
@@ -186,7 +185,7 @@ void hax_vfree_flags(void *va, uint32_t size, uint32_t flags __unused)
 
     flag = vmalloc_tree_retrieve(va);
 
-    uvm_km_free(kernel_map, va, size, flag);
+    uvm_km_free(kernel_map, (vaddr_t)va, size, flag);
 }
 
 void hax_vfree(void *va, uint32_t size)
@@ -199,7 +198,7 @@ void hax_vfree(void *va, uint32_t size)
 void hax_vfree_aligned(void *va, uint32_t size, uint32_t alignment __unused,
                                   uint32_t flags)
 {
-    hax_vfree_flags(kernel_map, va, size, flags);
+    hax_vfree_flags(va, size, flags);
 }
 
 /* We must cache flags passed to uvm_km_alloc(9) */
@@ -210,13 +209,13 @@ struct pmalloc_pair_entry {
 };
 
 static int
-pmalloc_compare_key(void *ctx, const paddr_t n1, const void *keyp)
+pmalloc_compare_key(void *ctx, const void *n1, const void *keyp)
 {
-    const paddr_t a1;
-    const paddr_t a2;
+    paddr_t a1;
+    paddr_t a2;
 
-    assert(a1);
-    assert(keyp);
+    KASSERT(n1);
+    KASSERT(keyp);
 
     a1 = ((struct pmalloc_pair_entry*)n1)->first;
     a2 = (const paddr_t)keyp;
@@ -225,13 +224,13 @@ pmalloc_compare_key(void *ctx, const paddr_t n1, const void *keyp)
 }
 
 static int
-pmalloc_compare_node(void *ctx, const void *n1, const void *n2)
+pmalloc_compare_nodes(void *ctx, const void *n1, const void *n2)
 {
-    const paddr_t key2;
+    paddr_t key2;
 
-    assert(n1);
-    assert(n2);
-    assert(((struct pmalloc_pair_entry*)n2)->first);
+    KASSERT(n1);
+    KASSERT(n2);
+    KASSERT(((struct pmalloc_pair_entry*)n2)->first);
 
     key2 = ((struct pmalloc_pair_entry*)n2)->first;
 
