@@ -41,6 +41,25 @@
 int hax_setup_vcpumem(struct hax_vcpu_mem *mem, uint64_t uva, uint32_t size,
                       int flags)
 {
+    struct netbsd_vcpu_mem *hinfo;
+
+    if (!mem)
+        return -EINVAL;
+
+    hinfo = (struct netbsd_vcpu_mem *)hax_vmalloc(
+            sizeof(struct darwin_vcpu_mem), 0);
+    if (!hinfo)
+        return -ENOMEM;
+
+    hinfo->flags = flags;
+
+    if (flags & HAX_VCPUMEM_VALIDVA) {
+        // Map to kernel
+    } else {
+        // Map to user
+    }
+
+///////////////////
     struct darwin_vcpu_mem *hinfo;
     struct IOMemoryDescriptor *md = NULL;
     struct IOMemoryMap *mm = NULL;
@@ -51,7 +70,7 @@ int hax_setup_vcpumem(struct hax_vcpu_mem *mem, uint64_t uva, uint32_t size,
     if (!mem)
         return -EINVAL;
 
-    hinfo = (struct darwin_vcpu_mem *)hax_vmalloc(
+    hinfo = (struct netbsd_vcpu_mem *)hax_vmalloc(
             sizeof(struct darwin_vcpu_mem), 0);
     if (!hinfo)
         return -ENOMEM;

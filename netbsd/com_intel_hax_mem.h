@@ -31,19 +31,8 @@
 #ifndef HAX_NETBSD_COM_INTEL_HAX_MEM_H_
 #define HAX_NETBSD_COM_INTEL_HAX_MEM_H_
 
-/*
- * The usage is, driver allocates memory through BufferMemoryDescriptor, and
- * then map it to thread's virtual address.
- * Depending on whether the information will be shared among different threads
- * in the same process, the map may be created so that it can be copied when
- * clone or fork.
- */
 struct netbsd_vcpu_mem {
     uint32_t flags;
-    /* bmd is for tunnel and iobuf, while md is for ram */
-    struct IOBufferMemoryDescriptor *bmd;
-    struct IOMemoryDescriptor *md;
-    struct IOMemoryMap *umap;
 };
 
 #endif  // HAX_NETBSD_COM_INTEL_HAX_MEM_H_
