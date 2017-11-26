@@ -102,13 +102,11 @@ extern "C" {
 #endif
 
 struct hax_page {
-    /* XXX TBD combine the md and bmd */
-    struct IOMemoryDescriptor *md;
-    struct IOBufferMemoryDescriptor *bmd;
-    struct IOMemoryMap *map;
     uint8_t flags;
     int order;
     void *kva;
+    void *uva;
+    void *uao;
     uint64_t pa;
     struct hax_link_list list;
 };
