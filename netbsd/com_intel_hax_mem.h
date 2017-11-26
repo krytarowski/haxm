@@ -28,14 +28,8 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef HAX_DARWIN_COM_INTEL_HAX_MEM_H_
-#define HAX_DARWIN_COM_INTEL_HAX_MEM_H_
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-struct IOBufferMemoryDescriptor;
+#ifndef HAX_NETBSD_COM_INTEL_HAX_MEM_H_
+#define HAX_NETBSD_COM_INTEL_HAX_MEM_H_
 
 /*
  * The usage is, driver allocates memory through BufferMemoryDescriptor, and
@@ -44,7 +38,7 @@ struct IOBufferMemoryDescriptor;
  * in the same process, the map may be created so that it can be copied when
  * clone or fork.
  */
-struct darwin_vcpu_mem {
+struct netbsd_vcpu_mem {
     uint32_t flags;
     /* bmd is for tunnel and iobuf, while md is for ram */
     struct IOBufferMemoryDescriptor *bmd;
@@ -52,8 +46,4 @@ struct darwin_vcpu_mem {
     struct IOMemoryMap *umap;
 };
 
-#ifdef __cplusplus
-}
-#endif
-
-#endif  // HAX_DARWIN_COM_INTEL_HAX_MEM_H_
+#endif  // HAX_NETBSD_COM_INTEL_HAX_MEM_H_
