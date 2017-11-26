@@ -33,6 +33,7 @@
 #include <sys/mutex.h>
 #include <sys/rbtree.h>
 #include <sys/systm.h>
+#include <sys/proc.h>
 #include <sys/kmem.h>
 #include <uvm/uvm.h>
 
@@ -339,54 +340,88 @@ struct hax_page * hax_alloc_pages(int order, uint32_t flags,
                                              bool vmap)
 {
     struct hax_page *ppage = NULL;
-    struct IOBufferMemoryDescriptor *md = NULL;
-    IOOptionBits fOptions = 0;
+    struct uvm_object *uao;
+    vaddr_t uva;
+    vaddr_t kva;
+    paddr_t pa;
+    int rv;
+    size_t size = page_size << order;
+    struct proc *p = curproc;
 
     ppage = (struct hax_page *)hax_vmalloc(sizeof(struct hax_page), 0);
     if (!ppage)
         return NULL;
 
-    fOptions = kIODirectionIn | kIODirectionOut | kIOMemoryKernelUserShared |
-               kIOMemoryPhysicallyContiguous;
-
-    fOptions |= kIOMemoryMapperNone;
-
     if (flags & HAX_MEM_LOW_4G) {
-        md = IOBufferMemoryDescriptor::inTaskWithPhysicalMask(
-                kernel_task, fOptions, page_size << order, (0x1ULL << 32) - 1);
-    } else {
-        md = IOBufferMemoryDescriptor::inTaskWithOptions(
-                kernel_task, fOptions, page_size << order, page_size);
+        /* XXX */
     }
-    if (!md)
-        goto error;
+
+    uao = uao_create(size, 0);
+    uva = p->p_emul->
+              e_vm_default_addr(p,
+                                (vaddr_t)p->p_vmspace->vm_daddr, size,
+                                p->p_vmspace->vm_map.flags & VM_MAP_TOPDOWN);
+    rv = uvm_map(&p->p_vmspace->vm_map, &uva, size, uao, 0, 0,
+                 UVM_MAPFLAG(UVM_PROT_RW, UVM_PROT_RW, UVM_INH_NONE,
+                             UVM_ADV_NORMAL, 0));
+    if (rv != 0) {
+        uao_detach(uao);
+        return NULL;
+    }
+
+    (*uao->pgops->pgo_reference)(uao);
+    kva = vm_map_min(kernel_map);
+    /* Map it into the kernel virtual address space.  */
+    rv = uvm_map(kernel_map, &kva, size, uao, 0, 0,
+                 UVM_MAPFLAG(UVM_PROT_RW, UVM_PROT_RW, UVM_INH_NONE,
+                             UVM_ADV_RANDOM, 0));
+    if (rv) {
+        (*uao->pgops->pgo_detach)(uao);
+        uvm_unmap(&p->p_vmspace->vm_map, uva, uva + size);
+        uao_detach(uao);
+        return NULL;
+    }
+
+    rv = uvm_map_pageable(kernel_map, kva, kva + size, false, 0);
+    if (rv) {
+        uvm_unmap(kernel_map, kva, kva + size);
+        (*uao->pgops->pgo_detach)(uao);
+        uvm_unmap(&p->p_vmspace->vm_map, uva, uva + size);
+        uao_detach(uao);
+        return NULL;
+    }
+
+    if (!pmap_extract(pmap_kernel(), kva, &pa)) {
+        uvm_unmap(kernel_map, kva, kva + size);
+        (*uao->pgops->pgo_detach)(uao);
+        uvm_unmap(&p->p_vmspace->vm_map, uva, uva + size);
+        uao_detach(uao);
+        return NULL;
+    }
 
     ppage->order = order;
-    ppage->bmd = md;
-    ppage->flags = 0;
-    ppage->kva = md->getBytesNoCopy();
-    ppage->pa = md->getPhysicalSegment(0, 0, kIOMemoryMapperNone);
+    ppage->uva = (void*)uva;
+    ppage->uao = uao;
+    ppage->flags = flags;
+    ppage->kva = (void*)kva;
+    ppage->pa = pa;
     return ppage;
-
-error:
-    if (ppage)
-        hax_vfree(ppage, sizeof(struct hax_page));
-    return NULL;
 }
 
 void hax_free_pages(struct hax_page *pages)
 {
+    size_t size;
+    struct proc *p = curproc;
+
     if (!pages)
         return;
-    if (pages->flags) {
-        if (pages->map)
-            pages->map->release();
-        if (pages->md)
-            pages->md->release();
-    } else {
-        if (pages->bmd)
-            pages->bmd->release();
-    }
+
+    size = page_size << pages->order;
+
+    uvm_unmap(kernel_map, (vaddr_t)pages->kva, (vaddr_t)pages->kva + size);
+    (*((struct uvm_object *)pages->uao)->pgops->pgo_detach)(pages->uao);
+    uvm_unmap(&p->p_vmspace->vm_map, (vaddr_t)pages->uva, (vaddr_t)pages->uva + size);
+    uao_detach(pages->uao);
 
     hax_vfree(pages, sizeof(struct hax_page));
 }
