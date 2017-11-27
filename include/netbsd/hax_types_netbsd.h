@@ -94,13 +94,6 @@ static inline void smp_mb(void)
     membar_sync();
 }
 
-struct IOBufferMemoryDescriptor;
-struct IOMemoryMap;
-struct IOMemoryDescriptor;
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 struct hax_page {
     uint8_t flags;
     int order;
@@ -112,24 +105,16 @@ struct hax_page {
 };
 
 typedef struct hax_memdesc_user {
-    struct IOMemoryDescriptor *md;
 } hax_memdesc_user;
 
 typedef struct hax_kmap_user {
-    struct IOMemoryMap *mm;
 } hax_kmap_user;
 
 typedef struct hax_memdesc_phys {
-    struct IOBufferMemoryDescriptor *bmd;
 } hax_memdesc_phys;
 
 typedef struct hax_kmap_phys {
-    struct IOMemoryMap *mm;
 } hax_kmap_phys;
-
-#ifdef __cplusplus
-}
-#endif
 
 #define PACKED     __attribute__ ((packed))
 #define ALIGNED(x) __attribute__ ((aligned(x)))
