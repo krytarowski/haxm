@@ -67,8 +67,6 @@ struct smp_call_parameter {
     cpumap_t *cpus;
 };
 
-void mp_rendezvous_no_intrs(void (*action_func)(void *), void *arg);
-
 void smp_cfunction(void *param)
 {
     int cpu_id;
@@ -92,7 +90,7 @@ int smp_call_function(cpumap_t *cpus, void (*scfunc)(void *),
     sp.func = scfunc;
     sp.param = param;
     sp.cpus = cpus;
-    mp_rendezvous_no_intrs(smp_cfunction, &sp);
+//    mp_rendezvous_no_intrs(smp_cfunction, &sp);
     return 0;
 }
 
