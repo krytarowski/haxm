@@ -237,7 +237,9 @@ extern "C" {
 #endif
 
 int smp_call_function(cpumap_t *cpus, void(*scfunc)(void *param), void *param);
+#if !defined(__NetBSD__)
 extern int cpu_number(void);
+#endif
 
 uint32_t hax_cpuid(void);
 int proc_event_pending(struct vcpu_t *vcpu);

@@ -30,6 +30,9 @@
 
 /* wrap not-memory hax interface to NetBSD function */
 
+#include <sys/param.h>
+#include <sys/types.h>
+#include <sys/lwp.h>
 #include <machine/cpufunc.h>
 
 #include "../include/hax.h"
@@ -66,8 +69,6 @@ struct smp_call_parameter {
 
 void mp_rendezvous_no_intrs(void (*action_func)(void *), void *arg);
 
-int hax_cpu_number(void);
-
 void smp_cfunction(void *param)
 {
     int cpu_id;
@@ -76,7 +77,7 @@ void smp_cfunction(void *param)
     struct smp_call_parameter *p;
 
     p = (struct smp_call_parameter *)param;
-    cpu_id = hax_cpu_number();
+    cpu_id = curcpu()->ci_cpuid;
     action = p->func;
     hax_cpus = p->cpus;
     //printf("cpus:%llx, current_cpu:%x\n", *cpus, cpu_id);
@@ -97,7 +98,7 @@ int smp_call_function(cpumap_t *cpus, void (*scfunc)(void *),
 
 uint32_t hax_cpuid()
 {
-    return hax_cpu_number();
+    return curcpu()->ci_cpuid;
 }
 
 void hax_enable_irq(void)
