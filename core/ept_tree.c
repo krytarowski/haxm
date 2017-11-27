@@ -400,7 +400,7 @@ int ept_tree_create_entry(hax_ept_tree *tree, uint64 gfn, hax_epte value)
 {
     hax_epte *table;
     int level;
-    hax_kmap_phys kmap = { 0 }, prev_kmap = { 0 };
+    hax_kmap_phys kmap = {}, prev_kmap = {};
     int ret;
     uint pt_index;
     hax_epte *pte;
@@ -465,7 +465,7 @@ int ept_tree_create_entries(hax_ept_tree *tree, uint64 start_gfn, uint64 npages,
     hax_epte new_pte = { 0 };
     uint64 gfn, end_gfn;
     hax_epte *pml4, *pdpt, *pd, *pt;
-    hax_kmap_phys pdpt_kmap = { 0 }, pd_kmap = { 0 }, pt_kmap = { 0 };
+    hax_kmap_phys pdpt_kmap = {}, pd_kmap = {}, pt_kmap = {};
     int ret;
     uint index, start_index, end_index;
     uint64 offset = offset_within_chunk;
@@ -625,7 +625,7 @@ void ept_tree_walk(hax_ept_tree *tree, uint64 gfn, epte_visitor visit_epte,
 {
     hax_epte *table;
     int level;
-    hax_kmap_phys kmap = { 0 }, prev_kmap = { 0 };
+    hax_kmap_phys kmap = {}, prev_kmap = {};
     int ret;
     uint pt_index;
     hax_epte *pte;
