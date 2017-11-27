@@ -33,7 +33,7 @@
 
 #include "com_intel_hax.h"
 
-struct hax_vm_mac {
+struct hax_vm_netbsd {
     /* The hax core's vm id */
     int vm_id;
     /* the minor id of corresponding devfs device */
@@ -65,10 +65,10 @@ __attribute__((visibility("hidden")))
 void hax_vcpu_destroy_mac(struct hax_vcpu_mac *vcpu);
 
 __attribute__((visibility("hidden")))
-void hax_vm_destroy_mac(struct hax_vm_mac *vm);
+void hax_vm_destroy_mac(struct hax_vm_netbsd *vm);
 
 __attribute__((visibility("hidden")))
-struct hax_vm_mac * hax_vm_create_mac(struct vm_t *vm, int vm_id);
+struct hax_vm_netbsd * hax_vm_create_mac(struct vm_t *vm, int vm_id);
 
 __attribute__((visibility("hidden")))
 int hax_vcpu_destroy(struct vcpu_t *cvcpu, int dest_vm);

@@ -42,7 +42,7 @@
 struct hax_vcpu_mac * hax_vcpu_create_mac(struct vcpu_t *cvcpu, void *vm_host,
                                           int vm_id, int cid) {
     struct hax_vcpu_mac *vcpu;
-    struct hax_vm_mac *vm = vm_host;
+    struct hax_vm_netbsd *vm = vm_host;
 
     if (!cvcpu || !vm_host) {
         printf("NULL cvcpu or vmhost in mac vcpu\n");
@@ -111,16 +111,16 @@ int hax_vcpu_create_host(struct vcpu_t *cvcpu, void *vm_host, int vm_id,
     return 0;
 }
 
-struct hax_vm_mac * hax_vm_create_mac(struct vm_t *cvm, int vm_id) {
-    struct hax_vm_mac *vm;
+struct hax_vm_netbsd * hax_vm_create_mac(struct vm_t *cvm, int vm_id) {
+    struct hax_vm_netbsd *vm;
 
     if (!cvm)
         return NULL;
 
-    vm = hax_vmalloc(sizeof(struct hax_vm_mac), 0);
+    vm = hax_vmalloc(sizeof(struct hax_vm_netbsd), 0);
     if (!vm)
         return NULL;
-    memset(vm, 0, sizeof(struct hax_vm_mac));
+    memset(vm, 0, sizeof(struct hax_vm_netbsd));
 
     vm->vm_id = vm_id;
     vm->cvm = cvm;
@@ -131,7 +131,7 @@ struct hax_vm_mac * hax_vm_create_mac(struct vm_t *cvm, int vm_id) {
     return vm;
 }
 
-void hax_vm_destroy_mac(struct hax_vm_mac *vm)
+void hax_vm_destroy_mac(struct hax_vm_netbsd *vm)
 {
     struct vm_t *cvm;
 
@@ -141,13 +141,13 @@ void hax_vm_destroy_mac(struct hax_vm_mac *vm)
     set_vm_host(cvm, NULL);
     vm->cvm = NULL;
     hax_vm_free_all_ram(cvm);
-    hax_vfree(vm, sizeof(struct hax_vm_mac));
+    hax_vfree(vm, sizeof(struct hax_vm_netbsd));
 }
 
 /* When comes here, all vcpus should have been destroyed already */
 int hax_vm_destroy_host(struct vm_t *cvm, void *host_pointer)
 {
-    struct hax_vm_mac *vm = (struct hax_vm_mac *)host_pointer;
+    struct hax_vm_netbsd *vm = (struct hax_vm_netbsd *)host_pointer;
 
     hax_vm_destroy_mac(vm);
 
@@ -156,7 +156,7 @@ int hax_vm_destroy_host(struct vm_t *cvm, void *host_pointer)
 
 int hax_vm_create_host(struct vm_t *cvm, int vm_id)
 {
-    struct hax_vm_mac *vm;
+    struct hax_vm_netbsd *vm;
 
     vm = hax_vm_create_mac(cvm, vm_id);
     if (!vm)

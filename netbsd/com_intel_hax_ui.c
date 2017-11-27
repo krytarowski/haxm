@@ -339,13 +339,13 @@ int hax_vm_ioctl(dev_t self, u_long cmd, void *data, int flag,
 {
     int ret = 0;
     struct vm_t *cvm;
-    struct hax_vm_mac *vm_mac;
+    struct hax_vm_netbsd *vm_mac;
 
     //printf("vm ioctl %lx\n", cmd);
     cvm = hax_get_vm(minor(self), 1);
     if (!cvm)
         return ENODEV;
-    vm_mac = (struct hax_vm_mac *)get_vm_host(cvm);
+    vm_mac = (struct hax_vm_netbsd *)get_vm_host(cvm);
     if (!vm_mac) {
         hax_put_vm(cvm);
         return ENODEV;
@@ -436,7 +436,7 @@ static struct cdevsw hax_vm_devsw = {
     .d_flag = D_TTY
 };
 
-int hax_vm_destroy_ui(struct hax_vm_mac *vm)
+int hax_vm_destroy_ui(struct hax_vm_netbsd *vm)
 {
     return 0;
 }
