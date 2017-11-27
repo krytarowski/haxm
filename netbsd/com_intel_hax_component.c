@@ -149,7 +149,6 @@ int hax_vm_destroy_host(struct vm_t *cvm, void *host_pointer)
 {
     struct hax_vm_mac *vm = (struct hax_vm_mac *)host_pointer;
 
-    hax_vm_destroy_ui(vm);
     hax_vm_destroy_mac(vm);
 
     return 0;
@@ -158,15 +157,11 @@ int hax_vm_destroy_host(struct vm_t *cvm, void *host_pointer)
 int hax_vm_create_host(struct vm_t *cvm, int vm_id)
 {
     struct hax_vm_mac *vm;
-    int ret;
 
     vm = hax_vm_create_mac(cvm, vm_id);
     if (!vm)
         return -1;
-    ret = hax_vm_create_ui(vm);
-    if (ret < 0)
-        hax_vm_destroy_mac(vm);
-    return ret;
+    return 0;
 }
 
 int hax_destroy_host_interface(void)
