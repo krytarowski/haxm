@@ -107,6 +107,7 @@ static int com_intel_hax_stop(void)
     return 0;
 }
 
+cpumap_t cpu_online_map;
 int max_cpus; // Required by core sources.
 
 static int com_intel_hax_init(void)
@@ -115,6 +116,7 @@ static int com_intel_hax_init(void)
     extern int ncpu;
 
     max_cpus = ncpu;
+    cpu_online_map = 0;
 
     if (max_cpus > HAX_MAX_CPUS) {
         hax_error("Too many cpus in system!, %d > %d\n", max_cpus, HAX_MAX_CPUS);
