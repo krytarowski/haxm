@@ -28,15 +28,11 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "../../../include/hax_host_mem.h"
+#include "../include/hax_host_mem.h"
+#include "../include/hax.h"
+#include "../core/include/paging.h"
 
-#include <IOKit/IOMemoryDescriptor.h>
-#include <IOKit/IOBufferMemoryDescriptor.h>
-
-#include "../../../include/hax.h"
-#include "../../../core/include/paging.h"
-
-extern "C" int hax_pin_user_pages(uint64 start_uva, uint64 size,
+int hax_pin_user_pages(uint64 start_uva, uint64 size,
                                   hax_memdesc_user *memdesc)
 {
     IOOptionBits options;
@@ -71,7 +67,7 @@ extern "C" int hax_pin_user_pages(uint64 start_uva, uint64 size,
     return 0;
 }
 
-extern "C" int hax_unpin_user_pages(hax_memdesc_user *memdesc)
+int hax_unpin_user_pages(hax_memdesc_user *memdesc)
 {
     IOReturn ret;
 
@@ -94,7 +90,7 @@ extern "C" int hax_unpin_user_pages(hax_memdesc_user *memdesc)
     return 0;
 }
 
-extern "C" uint64 hax_get_pfn_user(hax_memdesc_user *memdesc, uint64 uva_offset)
+uint64 hax_get_pfn_user(hax_memdesc_user *memdesc, uint64 uva_offset)
 {
     addr64_t hpa;
 
@@ -116,7 +112,7 @@ extern "C" uint64 hax_get_pfn_user(hax_memdesc_user *memdesc, uint64 uva_offset)
     return hpa >> PG_ORDER_4K;
 }
 
-extern "C" void * hax_map_user_pages(hax_memdesc_user *memdesc,
+void * hax_map_user_pages(hax_memdesc_user *memdesc,
                                      uint64 uva_offset, uint64 size,
                                      hax_kmap_user *kmap)
 {
@@ -163,7 +159,7 @@ extern "C" void * hax_map_user_pages(hax_memdesc_user *memdesc,
     return (void *) mm->getVirtualAddress();
 }
 
-extern "C" int hax_unmap_user_pages(hax_kmap_user *kmap)
+int hax_unmap_user_pages(hax_kmap_user *kmap)
 {
     if (!kmap) {
         hax_error("%s: kmap == NULL\n", __func__);
@@ -179,7 +175,7 @@ extern "C" int hax_unmap_user_pages(hax_kmap_user *kmap)
     return 0;
 }
 
-extern "C" int hax_alloc_page_frame(uint8 flags, hax_memdesc_phys *memdesc)
+int hax_alloc_page_frame(uint8 flags, hax_memdesc_phys *memdesc)
 {
     IOOptionBits options;
     IOBufferMemoryDescriptor *bmd;
@@ -219,7 +215,7 @@ extern "C" int hax_alloc_page_frame(uint8 flags, hax_memdesc_phys *memdesc)
     return 0;
 }
 
-extern "C" int hax_free_page_frame(hax_memdesc_phys *memdesc)
+int hax_free_page_frame(hax_memdesc_phys *memdesc)
 {
     if (!memdesc) {
         hax_error("%s: memdesc == NULL\n", __func__);
@@ -235,7 +231,7 @@ extern "C" int hax_free_page_frame(hax_memdesc_phys *memdesc)
     return 0;
 }
 
-extern "C" uint64 hax_get_pfn_phys(hax_memdesc_phys *memdesc)
+uint64 hax_get_pfn_phys(hax_memdesc_phys *memdesc)
 {
     addr64_t hpa;
 
@@ -256,7 +252,7 @@ extern "C" uint64 hax_get_pfn_phys(hax_memdesc_phys *memdesc)
     return hpa >> PG_ORDER_4K;
 }
 
-extern "C" void * hax_get_kva_phys(hax_memdesc_phys *memdesc)
+void * hax_get_kva_phys(hax_memdesc_phys *memdesc)
 {
     if (!memdesc) {
         hax_error("%s: memdesc == NULL\n", __func__);
@@ -270,7 +266,7 @@ extern "C" void * hax_get_kva_phys(hax_memdesc_phys *memdesc)
     return memdesc->bmd->getBytesNoCopy();
 }
 
-extern "C" void * hax_map_page_frame(uint64 pfn, hax_kmap_phys *kmap)
+void * hax_map_page_frame(uint64 pfn, hax_kmap_phys *kmap)
 {
     IOMemoryDescriptor *md;
     IOMemoryMap *mm;
@@ -299,7 +295,7 @@ extern "C" void * hax_map_page_frame(uint64 pfn, hax_kmap_phys *kmap)
     return (void *) mm->getVirtualAddress();
 }
 
-extern "C" int hax_unmap_page_frame(hax_kmap_phys *kmap)
+int hax_unmap_page_frame(hax_kmap_phys *kmap)
 {
     IOMemoryDescriptor *md;
 
@@ -322,4 +318,3 @@ extern "C" int hax_unmap_page_frame(hax_kmap_phys *kmap)
     md->release();
     return 0;
 }
-
