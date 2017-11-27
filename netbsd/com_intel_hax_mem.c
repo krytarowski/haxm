@@ -28,26 +28,28 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-/*
- * Per the experimental, create IOBuffereMemoryDescriptor with wired big-chunk
- * memory in user space address space failed (pageable allocation works), but
- * worked if the descriptor is created in kernel stack.
- * So we simply create all guest RAMs through descriptor in kernel stack and map
- * it to QEMU.
- * Considering the big kernel address space even in 32-bit mac, hope this works.
- */
+#include <sys/param.h>
+#include <sys/types.h>
+#include <sys/proc.h>
+#include <uvm/uvm.h>
+
 #include "com_intel_hax.h"
+
+// XXX: This is wrong
 
 int hax_setup_vcpumem(struct hax_vcpu_mem *mem, uint64_t uva, uint32_t size,
                       int flags)
 {
     struct netbsd_vcpu_mem *hinfo;
+    vaddr_t kva;
+    int rv;
+    struct proc *p = curproc;
 
     if (!mem)
         return -EINVAL;
 
     hinfo = (struct netbsd_vcpu_mem *)hax_vmalloc(
-            sizeof(struct darwin_vcpu_mem), 0);
+            sizeof(struct netbsd_vcpu_mem), 0);
     if (!hinfo)
         return -ENOMEM;
 
@@ -55,129 +57,60 @@ int hax_setup_vcpumem(struct hax_vcpu_mem *mem, uint64_t uva, uint32_t size,
 
     if (flags & HAX_VCPUMEM_VALIDVA) {
         // Map to kernel
+        rv = uvm_map(kernel_map, &uva, size, NULL, 0, 0,
+                     UVM_MAPFLAG(UVM_PROT_RW, UVM_PROT_RW, UVM_INH_NONE,
+                                 UVM_ADV_RANDOM, 0));
+        if (rv) {
+            hax_error("Failed to map into kernel\n");
+            return -1;
+        }
     } else {
         // Map to user
+        rv = uvm_map(&p->p_vmspace->vm_map, &uva, size, NULL, 0, 0,
+                     UVM_MAPFLAG(UVM_PROT_RW, UVM_PROT_RW, UVM_INH_NONE,
+                                 UVM_ADV_RANDOM, 0));
+        if (rv) {
+            hax_error("Failed to map into user\n");
+            return -1;
+        }
     }
 
-///////////////////
-    struct darwin_vcpu_mem *hinfo;
-    struct IOMemoryDescriptor *md = NULL;
-    struct IOMemoryMap *mm = NULL;
-    struct IOBufferMemoryDescriptor *bmd = NULL;
-    IOReturn result;
-    IOOptionBits options;
-
-    if (!mem)
-        return -EINVAL;
-
-    hinfo = (struct netbsd_vcpu_mem *)hax_vmalloc(
-            sizeof(struct darwin_vcpu_mem), 0);
-    if (!hinfo)
-        return -ENOMEM;
-
-    /* The VA is valid and allocated in advance by user space */
-    options = kIODirectionIn | kIODirectionOut | kIOMemoryKernelUserShared |
-              kIOMemoryMapperNone;
-
-    if (flags & HAX_VCPUMEM_VALIDVA) {
-        md = IOMemoryDescriptor::withAddressRange(uva, size, options,
-                                                  current_task());
-        if (!md) {
-            hax_error("Failed to create mapping for %llx\n", uva);
-            goto error;
-        }
-
-        result = md->prepare();
-        if (result != KERN_SUCCESS) {
-            hax_error("Failed to prepare\n");
-            goto error;
-        }
-
-        mm = md->createMappingInTask(kernel_task, 0, kIOMapAnywhere, 0, size);
-        if (!mm) {
-            hax_error("Failed to map into kernel\n");
-            md->complete();
-            goto error;
-        }
-        mem->uva = uva;
-        mem->kva = (void *)mm->getVirtualAddress();
-    } else {
-        /*
-         * BMD init in user space task is pageable, so have to init it in kernel
-         * firstly.
-         */
-        bmd = IOBufferMemoryDescriptor::inTaskWithOptions(kernel_task, options,
-                                                          size, page_size);
-        if (!bmd) {
-            printf("Failed to alloate tunnel info\n");
-            goto error;
-        }
-
-        mm = bmd->createMappingInTask(current_task(), 0, kIOMapAnywhere, 0,
-                                      size);
-        if (!mm) {
-            printf("Failed to map tunnel to user\n");
-            goto error;
-        }
-
-        mem->kva = bmd->getBytesNoCopy();
-        mem->uva = mm->getAddress();
-    }
     mem->size = size;
-    hinfo->bmd = bmd;
-    hinfo->md = md;
-    hinfo->umap = mm;
     mem->hinfo = hinfo;
 
     return 0;
-error:
-    if (md)
-        md->release();
-    if (mm)
-        mm->release();
-    if (bmd)
-        bmd->release();
-    if (hinfo)
-        hax_vfree(hinfo, sizeof(struct darwin_vcpu_mem));
-    return -1;
 }
 
 int hax_clear_vcpumem(struct hax_vcpu_mem *mem)
 {
-    struct darwin_vcpu_mem *hinfo;
+    struct netbsd_vcpu_mem *hinfo;
 
     if (!mem || !mem->hinfo)
         return -EINVAL;
-    hinfo = (struct darwin_vcpu_mem *)mem->hinfo;
-    if (hinfo->umap)
-        hinfo->umap->release();
-    if (hinfo->md) {
-        hinfo->md->complete();
-        hinfo->md->release();
-    }
-    if (hinfo->bmd)
-        hinfo->bmd->release();
-    hax_vfree(hinfo, sizeof(struct darwin_vcpu_mem));
+    hinfo = (struct netbsd_vcpu_mem *)mem->hinfo;
+    hax_vfree(hinfo, sizeof(struct netbsd_vcpu_mem));
     mem->hinfo = NULL;
     return 0;
 }
 
 uint64_t get_hpfn_from_pmem(struct hax_vcpu_mem *pmem, uint64_t va)
 {
-    uint64_t phys;
+    paddr_t pa;
     uint64_t length;
-    struct darwin_vcpu_mem *hinfo;
+    struct netbsd_vcpu_mem *hinfo;
+    bool success;
 
     if (!pmem || !pmem->hinfo)
         return 0;
     if (!in_pmem_range(pmem, va))
         return 0;
 
-    hinfo = (struct darwin_vcpu_mem *)pmem->hinfo;
-    phys = hinfo->md->getPhysicalSegment((va - pmem->uva),
-                                         (IOByteCount *)&length,
-                                         kIOMemoryMapperNone);
-    return phys >> page_shift;
+    hinfo = (struct netbsd_vcpu_mem *)pmem->hinfo;
+    success = pmap_extract(pmap_kernel(), (vaddr_t)va - (vaddr_t)pmem->uva, &pa);
+
+    KASSERT(success);
+
+    return pa >> page_shift;
 }
 
 /* In darwin, we depend on boot code to set the limit */
