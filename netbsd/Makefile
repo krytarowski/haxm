@@ -13,7 +13,7 @@ SRCS+=	com_intel_hax.c
 SRCS+=	com_intel_hax_component.c
 SRCS+=	com_intel_hax_mem.c
 SRCS+=	com_intel_hax_ui.c
-#SRCS+=	hax_host_mem.c
+SRCS+=	hax_host_mem.c
 SRCS+=	hax_mem_alloc.c
 SRCS+=	hax_wrapper.c
 
