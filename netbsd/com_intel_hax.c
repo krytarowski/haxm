@@ -107,13 +107,17 @@ static int com_intel_hax_stop(void)
     return 0;
 }
 
+int max_cpus; // Required by core sources.
+
 static int com_intel_hax_init(void)
 {
     // src/sys/kern/kern_cpu.c
     extern int ncpu;
 
-    if (ncpu > HAX_MAX_CPUS) {
-        hax_error("Too many cpus in system!, %d > %d\n", ncpu, HAX_MAX_CPUS);
+    max_cpus = ncpu;
+
+    if (max_cpus > HAX_MAX_CPUS) {
+        hax_error("Too many cpus in system!, %d > %d\n", max_cpus, HAX_MAX_CPUS);
         return E2BIG;
     }
 
