@@ -70,7 +70,7 @@ struct smp_call_parameter {
 
 extern "C" void mp_rendezvous_no_intrs(void (*action_func)(void *), void *arg);
 
-extern "C" int hax_cpu_number(void);
+extern "C" int cpu_number(void);
 
 void smp_cfunction(void *param)
 {
@@ -80,7 +80,7 @@ void smp_cfunction(void *param)
     struct smp_call_parameter *p;
 
     p = (struct smp_call_parameter *)param;
-    cpu_id = hax_cpu_number();
+    cpu_id = cpu_number();
     action = p->func;
     hax_cpus = p->cpus;
     //printf("cpus:%llx, current_cpu:%x\n", *cpus, cpu_id);
@@ -101,7 +101,7 @@ extern "C" int smp_call_function(cpumap_t *cpus, void (*scfunc)(void *),
 
 extern "C" uint32_t hax_cpuid()
 {
-    return hax_cpu_number();
+    return cpu_number();
 }
 
 extern "C" void hax_enable_irq(void)
