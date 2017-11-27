@@ -114,6 +114,7 @@ static int com_intel_hax_init(void)
 {
     // src/sys/kern/kern_cpu.c
     extern int ncpu;
+    int ret;
 
     max_cpus = ncpu;
     cpu_online_map = 0;
@@ -122,6 +123,10 @@ static int com_intel_hax_init(void)
         hax_error("Too many cpus in system!, %d > %d\n", max_cpus, HAX_MAX_CPUS);
         return E2BIG;
     }
+
+    ret = hax_malloc_init();
+    if (ret < 0)
+        return ENOMEM;
 
     return 0;
 }
