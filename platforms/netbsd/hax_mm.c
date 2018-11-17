@@ -45,11 +45,7 @@ int hax_clear_vcpumem(struct hax_vcpu_mem *mem)
 
     hinfo = mem->hinfo;
     vunmap(mem->kva);
-#if LINUX_VERSION_CODE <= KERNEL_VERSION(4,15,0)
-    release_pages(hinfo->pages, hinfo->nr_pages, 1);
-#else
     release_pages(hinfo->pages, hinfo->nr_pages);
-#endif
     if (!(hinfo->flags & HAX_VCPUMEM_VALIDVA)) {
         // TODO: This caused a kernel panic, now it just leaks memory.
         //vm_munmap(mem->uva, mem->size);
