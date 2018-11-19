@@ -28,15 +28,6 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include <linux/cred.h>
-#include <linux/dm-ioctl.h>
-#include <linux/miscdevice.h>
-#include <linux/namei.h>
-#include <linux/slab.h>
-#include <linux/uaccess.h>
-
-#include <linux/fs.h>
-
 #include "../../core/include/hax_core_interface.h"
 
 #define HAX_VM_DEVFS_FMT    "hax_vm/vm%02d"
