@@ -29,8 +29,8 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef HAX_LINUX_HAX_TYPES_LINUX_H_
-#define HAX_LINUX_HAX_TYPES_LINUX_H_
+#ifndef HAX_NETBSD_HAX_TYPES_NETBSD_H_
+#define HAX_NETBSD_HAX_TYPES_NETBSD_H_
 
 #include <linux/types.h>
 #include <linux/string.h>
@@ -68,6 +68,7 @@ struct hax_page {
     uint32_t order;
     uint32_t flags;
     struct hax_link_list list;
+    size_t size;
 };
 
 typedef struct hax_memdesc_user {
@@ -114,4 +115,4 @@ hax_atomic_t hax_atomic_dec(volatile hax_atomic_t *atom);
 
 void hax_smp_mb(void);
 
-#endif  // HAX_LINUX_HAX_TYPES_LINUX_H_
+#endif  // HAX_NETBSD_HAX_TYPES_NETBSD_H_
