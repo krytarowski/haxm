@@ -29,8 +29,8 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef HAX_LINUX_HAX_LINUX_H_
-#define HAX_LINUX_HAX_LINUX_H_
+#ifndef HAX_NETBSD_HAX_NETBSD_H_
+#define HAX_NETBSD_HAX_NETBSD_H_
 
 #define HAX_RAM_ENTRY_SIZE 0x4000000
 
@@ -118,10 +118,8 @@ void hax_log(char *fmt, ...);
 
 #define hax_log hax_info
 
-//#define hax_panic DbgPrint
-#define hax_panic hax_error
+#define hax_panic panic
 
-//#define assert(condition) BUG_ON(!(condition))
-void assert(bool condition);
+#define assert(condition) KASSERT(condition)
 
-#endif  // HAX_LINUX_HAX_LINUX_H_
+#endif  // HAX_NETBSD_HAX_NETBSD_H_
