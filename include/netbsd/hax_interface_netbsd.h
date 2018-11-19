@@ -29,10 +29,13 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef HAX_LINUX_HAX_INTERFACE_LINUX_H_
-#define HAX_LINUX_HAX_INTERFACE_LINUX_H_
+#ifndef HAX_NETBSD_HAX_INTERFACE_NETBSD_H_
+#define HAX_NETBSD_HAX_INTERFACE_NETBSD_H_
 
-#include <asm/ioctl.h>
+#include <sys/param.h>
+#include <sys/types.h>
+#include <sys/ioctl.h>
+#include <sys/ioccom.h>
 
 /* The mac specific interface to qemu because of mac's
  * special handling like hax tunnel allocation etc */
@@ -76,4 +79,4 @@
 
 #define is_compatible() 0
 
-#endif  // HAX_LINUX_HAX_INTERFACE_LINUX_H_
+#endif  // HAX_NETBSD_HAX_INTERFACE_NETBSD_H_
