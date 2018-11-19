@@ -32,9 +32,8 @@
 #ifndef HAX_NETBSD_HAX_TYPES_NETBSD_H_
 #define HAX_NETBSD_HAX_TYPES_NETBSD_H_
 
-#include <linux/types.h>
-#include <linux/string.h>
-#include <linux/errno.h>
+#include <sys/param.h>
+#include <sys/types.h>
 
 // Signed Types
 typedef int8_t  int8;
