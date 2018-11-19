@@ -1,45 +1,41 @@
-KVER ?= $(shell uname -r)
-KDIR ?= /lib/modules/$(KVER)/build
+S?=	/usr/src/sys
 
-MACHINE := $(shell uname -m)
-ifeq ($(MACHINE),x86_64)
-   NASM_OPTS := -f elf64
-else
-   NASM_OPTS := -f elf32
-endif
+KMOD=	intel-haxm
 
-HAXM_DIR     := ../../core
-HAXM_ASM_SRC := $(wildcard $(HAXM_DIR)/*.asm)
-HAXM_ASM_OBJ := $(patsubst $(HAXM_DIR)/%.asm, $(HAXM_DIR)/%.o, $(HAXM_ASM_SRC))
-HAXM_ASM_CMD := $(patsubst $(HAXM_DIR)/%.asm, $(HAXM_DIR)/.%.o.cmd, $(HAXM_ASM_SRC))
-HAXM_C_SRC   := $(wildcard $(HAXM_DIR)/*.c)
-HAXM_C_OBJ   := $(patsubst $(HAXM_DIR)/%.c, $(HAXM_DIR)/%.o, $(HAXM_C_SRC))
-HAXM_C_CMD   := $(patsubst $(HAXM_DIR)/%.c, $(HAXM_DIR)/.%.o.cmd, $(HAXM_C_SRC))
+# asm
+.PATH: asm
+SRCS+=	ia32.c
+SRCS+=	segments.c
+SRCS+=	vmcs.c
 
-.PHONY: all modules modules_install install uninstall clean
+# toplevel
+SRCS+=	com_intel_hax.c
+SRCS+=	com_intel_hax_component.c
+SRCS+=	com_intel_hax_mem.c
+SRCS+=	com_intel_hax_ui.c
+SRCS+=	hax_host_mem.c
+SRCS+=	hax_mem_alloc.c
+SRCS+=	hax_wrapper.c
 
-%.o: %.asm
-	$(eval CMD := $(join $(dir $@), .$(notdir $@).cmd))
-	nasm $(NASM_OPTS) -o $@ $^
-	echo "" > $(CMD)
+# core
+.PATH: ../core
+SRCS+=	chunk.c
+SRCS+=	cpu.c
+SRCS+=	dump_vmcs.c
+SRCS+=	ept.c
+SRCS+=	ept2.c
+SRCS+=	ept_tree.c
+SRCS+=	gpa_space.c
+SRCS+=	hax.c
+SRCS+=	intr_exc.c
+SRCS+=	memory.c
+SRCS+=	memslot.c
+SRCS+=	page_walker.c
+SRCS+=	ramblock.c
+SRCS+=	vcpu.c
+SRCS+=	vm.c
+SRCS+=	vmcs_names.c
+SRCS+=	vmx.c
+SRCS+=	vtlb.c
 
-all: modules
-
-modules: $(HAXM_ASM_OBJ)
-	$(MAKE) -C $(KDIR) M=$$PWD modules
-
-modules_install:
-	$(MAKE) -C $(KDIR) M=$$PWD modules_install
-
-install: modules_install
-	./haxm-install.sh
-
-uninstall:
-	./haxm-uninstall.sh
-
-clean:
-	$(MAKE) -C $(KDIR) M=$$PWD clean
-	rm -f $(HAXM_ASM_OBJ)
-	rm -f $(HAXM_ASM_CMD)
-	rm -f $(HAXM_C_OBJ)
-	rm -f $(HAXM_C_CMD)
+.include <bsd.kmodule.mk>
