@@ -2,23 +2,17 @@ S?=	/usr/src/sys
 
 KMOD=	intel-haxm
 
-# asm
-.PATH: asm
-SRCS+=	ia32.c
-SRCS+=	segments.c
-SRCS+=	vmcs.c
-
 # toplevel
-SRCS+=	com_intel_hax.c
-SRCS+=	com_intel_hax_component.c
-SRCS+=	com_intel_hax_mem.c
-SRCS+=	com_intel_hax_ui.c
+SRCS+=	components.c
+SRCS+=	hax_entry.c
+SRCS+=	hax_event.c
 SRCS+=	hax_host_mem.c
 SRCS+=	hax_mem_alloc.c
+SRCS+=	hax_mm.c
 SRCS+=	hax_wrapper.c
 
 # core
-.PATH: ../core
+.PATH: ../../core
 SRCS+=	chunk.c
 SRCS+=	cpu.c
 SRCS+=	dump_vmcs.c
