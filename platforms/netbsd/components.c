@@ -32,6 +32,7 @@
 #include <sys/conf.h>
 #include <sys/device.h>
 #include <sys/kernel.h>
+#include <sys/kmem.h>
 #include <sys/lwp.h>
 #include <sys/proc.h>
 #include <sys/module.h>
@@ -96,43 +97,19 @@ static struct cdevsw hax_vcpu_cdevsw = {
 
 /* Component management */
 
-static void hax_component_perm(const char *devname, struct miscdevice *misc)
-{
-    int err;
-    struct path path;
-    struct inode *inode;
-    const struct cred *cred;
-    char devpath[DM_NAME_LEN];
-
-    if (!misc || !misc->this_device)
-        return;
-
-    snprintf(devpath, sizeof(devpath), "/dev/%s", devname);
-    err = kern_path(devpath, LOOKUP_FOLLOW, &path);
-    if (err || !path.dentry) {
-        hax_error("Could not obtain device inode\n");
-        return;
-    }
-    cred = get_current_cred();
-    inode = path.dentry->d_inode;
-    inode->i_uid.val = cred->uid.val;
-    inode->i_gid.val = cred->gid.val;
-    inode->i_mode |= 0660;
-}
-
 static hax_vcpu_netbsd_t* hax_vcpu_create_netbsd(struct vcpu_t *cvcpu,
-                                               hax_vm_netbsd_t *vm, int vcpu_id)
+                                                 hax_vm_netbsd_t *vm,
+                                                 int vcpu_id)
 {
     hax_vcpu_netbsd_t *vcpu;
 
     if (!cvcpu || !vm)
         return NULL;
 
-    vcpu = kmalloc(sizeof(hax_vcpu_netbsd_t), GFP_KERNEL);
+    vcpu = kmem_zalloc(sizeof(hax_vcpu_netbsd_t), KM_SLEEP);
     if (!vcpu)
         return NULL;
 
-    memset(vcpu, 0, sizeof(hax_vcpu_netbsd_t));
     vcpu->cvcpu = cvcpu;
     vcpu->id = vcpu_id;
     vcpu->vm = vm;
@@ -151,7 +128,7 @@ static void hax_vcpu_destroy_netbsd(hax_vcpu_netbsd_t *vcpu)
     hax_vcpu_destroy_hax_tunnel(cvcpu);
     set_vcpu_host(cvcpu, NULL);
     vcpu->cvcpu = NULL;
-    kfree(vcpu);
+    kmem_free(vcpu, sizeof(hax_vcpu_netbsd_t));
 }
 
 int hax_vcpu_create_host(struct vcpu_t *cvcpu, void *vm_host, int vm_id,
@@ -178,7 +155,6 @@ int hax_vcpu_create_host(struct vcpu_t *cvcpu, void *vm_host, int vm_id,
         hax_vcpu_destroy_netbsd(vcpu);
         return -1;
     }
-    hax_component_perm(vcpu->devname, &vcpu->dev);
     hax_info("Created HAXM-VCPU device with minor=%d\n", vcpu->dev.minor);
     return 0;
 }
@@ -248,7 +224,6 @@ int hax_vm_create_host(struct vm_t *cvm, int vm_id)
         hax_vm_destroy_netbsd(vm);
         return -1;
     }
-    hax_component_perm(vm->devname, &vm->dev);
     hax_info("Created HAXM-VM device with minor=%d\n", vm->dev.minor);
     return 0;
 }
