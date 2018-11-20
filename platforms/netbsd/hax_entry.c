@@ -28,66 +28,78 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include <linux/init.h>
-#include <linux/module.h>
-#include <linux/kernel.h>
-#include <linux/fs.h>
-#include <linux/miscdevice.h>
-#include <linux/uaccess.h>
+#include <sys/param.h>
+#include <sys/conf.h>
+#include <sys/device.h>
+#include <sys/kernel.h>
+#include <sys/lwp.h>
+#include <sys/proc.h>
+#include <sys/module.h>
 
 #include "../../include/hax.h"
 #include "../../include/hax_interface.h"
 #include "../../include/hax_release_ver.h"
 #include "../../core/include/hax_core_interface.h"
 
-MODULE_LICENSE("Dual BSD/GPL");
-MODULE_AUTHOR("Kryptos Logic");
-MODULE_DESCRIPTION("Hypervisor that provides x86 virtualization on Intel VT-x compatible CPUs.");
-MODULE_VERSION(HAXM_RELEASE_VERSION_STR);
-
 #define HAX_DEVICE_NAME "HAX"
 
-static long hax_dev_ioctl(struct file *filp, unsigned int cmd,
-                          unsigned long arg);
+static int hax_cmajor = 220, hax_bmajor = -1;
 
-static struct file_operations hax_dev_fops = {
-    .owner          = THIS_MODULE,
-    .unlocked_ioctl = hax_dev_ioctl,
-    .compat_ioctl   = hax_dev_ioctl,
+dev_type_open(hax_dev_open);
+dev_type_close(hax_dev_close);
+static dev_type_ioctl(hax_dev_ioctl);
+
+static struct cdevsw hax_dev_cdevsw = {
+    .d_open = hax_dev_open,
+    .d_close = hax_dev_close,
+    .d_read = noread,
+    .d_write = nowrite,
+    .d_ioctl = hax_dev_ioctl,
+    .d_stop = nostop,
+    .d_tty = notty,
+    .d_poll = nopoll,
+    .d_mmap = nommap,
+    .d_kqfilter = nokqfilter,
+    .d_discard = nodiscard,
+    .d_flag = D_OTHER
 };
 
-static struct miscdevice hax_dev = {
-    MISC_DYNAMIC_MINOR,
-    HAX_DEVICE_NAME,
-    &hax_dev_fops,
-};
+static int hax_open(dev_t dev __unused, int flags __unused, int mode __unused,
+                    struct lwp *l __unused)
+{
+    hax_log_level(HAX_LOGI, "HAX module opened\n");
+    return 0;
+}
 
-static long hax_dev_ioctl(struct file *filp, unsigned int cmd,
-                          unsigned long arg)
+static int hax_close(dev_t self __unused, int flag __unused, int mode __unused,
+                     struct lwp *l __unused)
+{
+    hax_log_level(HAX_LOGI, "hax_close\n");
+    return 0;
+}
+
+static int hax_dev_ioctl(dev_t self __unused, u_long cmd, void *data, int flag,
+                         struct lwp *l)
 {
     int ret = 0;
-    void *argp = (void *)arg;
 
     switch (cmd) {
     case HAX_IOCTL_VERSION: {
-        struct hax_module_version version = {};
-        version.cur_version = HAX_CUR_VERSION;
-        version.compat_version = HAX_COMPAT_VERSION;
-        if (copy_to_user(argp, &version, sizeof(version)))
-            return -EFAULT;
+        struct hax_module_version *version;
+        version = (struct hax_module_version *)data;
+        version->cur_version = HAX_CUR_VERSION;
+        version->compat_version = HAX_COMPAT_VERSION;
         break;
     }
     case HAX_IOCTL_CAPABILITY: {
-        struct hax_capabilityinfo capab = {};
+        struct hax_capabilityinfo *capab;
+        capab = (struct hax_capabilityinfo *)data;
         hax_get_capability(&capab, sizeof(capab), NULL);
-        if (copy_to_user(argp, &capab, sizeof(capab)))
-            return -EFAULT;
         break;
     }
     case HAX_IOCTL_SET_MEMLIMIT: {
-        struct hax_set_memlimit memlimit = {};
-        if (copy_from_user(&memlimit, argp, sizeof(memlimit)))
-            return -EFAULT;
+        struct hax_set_memlimit *memlimit;
+        memlimit = (struct hax_set_memlimit *)data;
         ret = hax_set_memlimit(&memlimit, sizeof(memlimit), NULL);
         break;
     }
@@ -98,57 +110,73 @@ static long hax_dev_ioctl(struct file *filp, unsigned int cmd,
         cvm = hax_create_vm(&vm_id);
         if (!cvm) {
             hax_log_level(HAX_LOGE, "Failed to create the HAX VM\n");
-            ret = -ENOMEM;
+            ret = ENOMEM;
             break;
         }
 
-        if (copy_to_user(argp, &vm_id, sizeof(vm_id)))
-            return -EFAULT;
+        *((uint32_t *)data) = vm_id;
         break;
     }
     default:
+        hax_error("Unknown ioctl %#lx, pid=%d ('%s')\n", cmd,
+                  l->l_proc->p_pid, l->l_proc->p_comm);
+        ret = ENOSYS;
         break;
     }
     return ret;
 }
 
-static int __init hax_driver_init(void)
+static int hax_driver_init(void)
 {
+    // src/sys/kern/kern_cpu.c
+    extern int ncpu;       /* number of CPUs */
+    extern int ncpuonline; /* number of CPUs online */
     int i, err;
 
     // Initialization
-    max_cpus = num_present_cpus();
-    cpu_online_map = 0;
-    for (i = 0; i < max_cpus; i++) {
-        if (cpu_online(i))
-            cpu_online_map |= (1ULL << i);
-    }
+    max_cpus = ncpu;
+    cpu_online_map = ncpuonline;
 
     if (hax_module_init() < 0) {
         hax_error("Failed to initialize HAXM module\n");
         return -EAGAIN;
     }
 
-    err = misc_register(&hax_dev);
+    err = devsw_attach(HAX_DEVICE_NAME, NULL, &hax_bmajor, &hax_dev_cdevsw,
+                       &hax_cmajor);
     if (err) {
         hax_error("Failed to register HAXM device\n");
         hax_module_exit();
-        return err;
+        return ENXIO;
     }
 
-    hax_info("Created HAXM device with minor=%d\n", hax_dev.minor);
+    hax_info("Created HAXM device with minor=%d\n", hax_cmajor);
     return 0;
 }
 
-static void __exit hax_driver_exit(void)
+static int hax_driver_exit(void)
 {
     if (hax_module_exit() < 0) {
         hax_error("Failed to finalize HAXM module\n");
     }
 
-    misc_deregister(&hax_dev);
+    devsw_detach(NULL, &hax_dev_cdevsw);
     hax_info("Removed HAXM device\n");
+
+    return 0;
 }
 
-module_init(hax_driver_init);
-module_exit(hax_driver_exit);
+MODULE(MODULE_CLASS_MISC, hax_driver, NULL);
+
+static int
+hax_driver_modcmd(modcmd_t cmd, void *arg __unused)
+{
+    switch (cmd) {
+    case MODULE_CMD_INIT:
+        return hax_driver_init();
+    case MODULE_CMD_FINI:
+        return hax_driver_exit();
+    default:
+        return ENOTTY;
+    }
+}

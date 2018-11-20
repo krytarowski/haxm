@@ -33,20 +33,20 @@
 #define HAX_VM_DEVFS_FMT    "hax_vm/vm%02d"
 #define HAX_VCPU_DEVFS_FMT  "hax_vm%02d/vcpu%02d"
 
-typedef struct hax_vm_linux_t {
+typedef struct hax_vm_netbsd_t {
     struct vm_t *cvm;
     int id;
     struct miscdevice dev;
     char *devname;
-} hax_vm_linux_t;
+} hax_vm_netbsd_t;
 
-typedef struct hax_vcpu_linux_t {
+typedef struct hax_vcpu_netbsd_t {
     struct vcpu_t *cvcpu;
-    struct hax_vm_linux_t *vm;
+    struct hax_vm_netbsd_t *vm;
     int id;
     struct miscdevice dev;
     char *devname;
-} hax_vcpu_linux_t;
+} hax_vcpu_netbsd_t;
 
 static int hax_vm_open(struct inode *inodep, struct file *filep);
 static int hax_vm_release(struct inode *inodep, struct file *filep);
@@ -100,19 +100,19 @@ static void hax_component_perm(const char *devname, struct miscdevice *misc)
     inode->i_mode |= 0660;
 }
 
-static hax_vcpu_linux_t* hax_vcpu_create_linux(struct vcpu_t *cvcpu,
-                                               hax_vm_linux_t *vm, int vcpu_id)
+static hax_vcpu_netbsd_t* hax_vcpu_create_netbsd(struct vcpu_t *cvcpu,
+                                               hax_vm_netbsd_t *vm, int vcpu_id)
 {
-    hax_vcpu_linux_t *vcpu;
+    hax_vcpu_netbsd_t *vcpu;
 
     if (!cvcpu || !vm)
         return NULL;
 
-    vcpu = kmalloc(sizeof(hax_vcpu_linux_t), GFP_KERNEL);
+    vcpu = kmalloc(sizeof(hax_vcpu_netbsd_t), GFP_KERNEL);
     if (!vcpu)
         return NULL;
 
-    memset(vcpu, 0, sizeof(hax_vcpu_linux_t));
+    memset(vcpu, 0, sizeof(hax_vcpu_netbsd_t));
     vcpu->cvcpu = cvcpu;
     vcpu->id = vcpu_id;
     vcpu->vm = vm;
@@ -120,7 +120,7 @@ static hax_vcpu_linux_t* hax_vcpu_create_linux(struct vcpu_t *cvcpu,
     return vcpu;
 }
 
-static void hax_vcpu_destroy_linux(hax_vcpu_linux_t *vcpu)
+static void hax_vcpu_destroy_netbsd(hax_vcpu_netbsd_t *vcpu)
 {
     struct vcpu_t *cvcpu;
 
@@ -138,11 +138,11 @@ int hax_vcpu_create_host(struct vcpu_t *cvcpu, void *vm_host, int vm_id,
                          int vcpu_id)
 {
     int err;
-    hax_vcpu_linux_t *vcpu;
-    hax_vm_linux_t *vm;
+    hax_vcpu_netbsd_t *vcpu;
+    hax_vm_netbsd_t *vm;
 
-    vm = (hax_vm_linux_t *)vm_host;
-    vcpu = hax_vcpu_create_linux(cvcpu, vm, vcpu_id);
+    vm = (hax_vm_netbsd_t *)vm_host;
+    vcpu = hax_vcpu_create_netbsd(cvcpu, vm, vcpu_id);
     if (!vcpu)
         return -1;
 
@@ -155,7 +155,7 @@ int hax_vcpu_create_host(struct vcpu_t *cvcpu, void *vm_host, int vm_id,
     err = misc_register(&vcpu->dev);
     if (err) {
         hax_error("Failed to register HAXM-VCPU device\n");
-        hax_vcpu_destroy_linux(vcpu);
+        hax_vcpu_destroy_netbsd(vcpu);
         return -1;
     }
     hax_component_perm(vcpu->devname, &vcpu->dev);
@@ -165,35 +165,35 @@ int hax_vcpu_create_host(struct vcpu_t *cvcpu, void *vm_host, int vm_id,
 
 int hax_vcpu_destroy_host(struct vcpu_t *cvcpu, void *vcpu_host)
 {
-    hax_vcpu_linux_t *vcpu;
+    hax_vcpu_netbsd_t *vcpu;
 
-    vcpu = (hax_vcpu_linux_t *)vcpu_host;
+    vcpu = (hax_vcpu_netbsd_t *)vcpu_host;
     misc_deregister(&vcpu->dev);
     kfree(vcpu->devname);
 
-    hax_vcpu_destroy_linux(vcpu);
+    hax_vcpu_destroy_netbsd(vcpu);
     return 0;
 }
 
-static hax_vm_linux_t *hax_vm_create_linux(struct vm_t *cvm, int vm_id)
+static hax_vm_netbsd_t *hax_vm_create_netbsd(struct vm_t *cvm, int vm_id)
 {
-    hax_vm_linux_t *vm;
+    hax_vm_netbsd_t *vm;
 
     if (!cvm)
         return NULL;
 
-    vm = kmalloc(sizeof(hax_vm_linux_t), GFP_KERNEL);
+    vm = kmalloc(sizeof(hax_vm_netbsd_t), GFP_KERNEL);
     if (!vm)
         return NULL;
 
-    memset(vm, 0, sizeof(hax_vm_linux_t));
+    memset(vm, 0, sizeof(hax_vm_netbsd_t));
     vm->cvm = cvm;
     vm->id = vm_id;
     set_vm_host(cvm, vm);
     return vm;
 }
 
-static void hax_vm_destroy_linux(hax_vm_linux_t *vm)
+static void hax_vm_destroy_netbsd(hax_vm_netbsd_t *vm)
 {
     struct vm_t *cvm;
 
@@ -210,9 +210,9 @@ static void hax_vm_destroy_linux(hax_vm_linux_t *vm)
 int hax_vm_create_host(struct vm_t *cvm, int vm_id)
 {
     int err;
-    hax_vm_linux_t *vm;
+    hax_vm_netbsd_t *vm;
 
-    vm = hax_vm_create_linux(cvm, vm_id);
+    vm = hax_vm_create_netbsd(cvm, vm_id);
     if (!vm)
         return -1;
 
@@ -225,7 +225,7 @@ int hax_vm_create_host(struct vm_t *cvm, int vm_id)
     err = misc_register(&vm->dev);
     if (err) {
         hax_error("Failed to register HAXM-VM device\n");
-        hax_vm_destroy_linux(vm);
+        hax_vm_destroy_netbsd(vm);
         return -1;
     }
     hax_component_perm(vm->devname, &vm->dev);
@@ -236,17 +236,17 @@ int hax_vm_create_host(struct vm_t *cvm, int vm_id)
 /* When coming here, all vcpus should have been destroyed already. */
 int hax_vm_destroy_host(struct vm_t *cvm, void *vm_host)
 {
-    hax_vm_linux_t *vm;
+    hax_vm_netbsd_t *vm;
 
-    vm = (hax_vm_linux_t *)vm_host;
+    vm = (hax_vm_netbsd_t *)vm_host;
     misc_deregister(&vm->dev);
     kfree(vm->devname);
 
-    hax_vm_destroy_linux(vm);
+    hax_vm_destroy_netbsd(vm);
     return 0;
 }
 
-/* No corresponding function in Linux side, it can be cleaned later. */
+/* No corresponding function in netbsd side, it can be cleaned later. */
 int hax_destroy_host_interface(void)
 {
     return 0;
@@ -258,11 +258,11 @@ static int hax_vcpu_open(struct inode *inodep, struct file *filep)
 {
     int ret;
     struct vcpu_t *cvcpu;
-    struct hax_vcpu_linux_t *vcpu;
+    struct hax_vcpu_netbsd_t *vcpu;
     struct miscdevice *miscdev;
 
     miscdev = filep->private_data;
-    vcpu = container_of(miscdev, struct hax_vcpu_linux_t, dev);
+    vcpu = container_of(miscdev, struct hax_vcpu_netbsd_t, dev);
     cvcpu = hax_get_vcpu(vcpu->vm->id, vcpu->id, 1);
 
     hax_log_level(HAX_LOGD, "HAX vcpu open called\n");
@@ -280,11 +280,11 @@ static int hax_vcpu_release(struct inode *inodep, struct file *filep)
 {
     int ret = 0;
     struct vcpu_t *cvcpu;
-    struct hax_vcpu_linux_t *vcpu;
+    struct hax_vcpu_netbsd_t *vcpu;
     struct miscdevice *miscdev;
 
     miscdev = filep->private_data;
-    vcpu = container_of(miscdev, struct hax_vcpu_linux_t, dev);
+    vcpu = container_of(miscdev, struct hax_vcpu_netbsd_t, dev);
     cvcpu = hax_get_vcpu(vcpu->vm->id, vcpu->id, 1);
 
     hax_log_level(HAX_LOGD, "HAX vcpu close called\n");
@@ -306,11 +306,11 @@ static long hax_vcpu_ioctl(struct file *filp, unsigned int cmd,
     int ret = 0;
     void *argp = (void *)arg;
     struct vcpu_t *cvcpu;
-    struct hax_vcpu_linux_t *vcpu;
+    struct hax_vcpu_netbsd_t *vcpu;
     struct miscdevice *miscdev;
 
     miscdev = filp->private_data;
-    vcpu = container_of(miscdev, struct hax_vcpu_linux_t, dev);
+    vcpu = container_of(miscdev, struct hax_vcpu_netbsd_t, dev);
     cvcpu = hax_get_vcpu(vcpu->vm->id, vcpu->id, 1);
     if (!cvcpu)
         return -ENODEV;
@@ -451,11 +451,11 @@ static int hax_vm_open(struct inode *inodep, struct file *filep)
 {
     int ret;
     struct vm_t *cvm;
-    struct hax_vm_linux_t *vm;
+    struct hax_vm_netbsd_t *vm;
     struct miscdevice *miscdev;
 
     miscdev = filep->private_data;
-    vm = container_of(miscdev, struct hax_vm_linux_t, dev);
+    vm = container_of(miscdev, struct hax_vm_netbsd_t, dev);
     cvm = hax_get_vm(vm->id, 1);
     if (!cvm)
         return -ENODEV;
@@ -469,11 +469,11 @@ static int hax_vm_open(struct inode *inodep, struct file *filep)
 static int hax_vm_release(struct inode *inodep, struct file *filep)
 {
     struct vm_t *cvm;
-    struct hax_vm_linux_t *vm;
+    struct hax_vm_netbsd_t *vm;
     struct miscdevice *miscdev;
 
     miscdev = filep->private_data;
-    vm = container_of(miscdev, struct hax_vm_linux_t, dev);
+    vm = container_of(miscdev, struct hax_vm_netbsd_t, dev);
     cvm = hax_get_vm(vm->id, 1);
 
     hax_log_level(HAX_LOGI, "Close VM\n");
@@ -491,11 +491,11 @@ static long hax_vm_ioctl(struct file *filp, unsigned int cmd,
     int ret = 0;
     void *argp = (void *)arg;
     struct vm_t *cvm;
-    struct hax_vm_linux_t *vm;
+    struct hax_vm_netbsd_t *vm;
     struct miscdevice *miscdev;
 
     miscdev = filp->private_data;
-    vm = container_of(miscdev, struct hax_vm_linux_t, dev);
+    vm = container_of(miscdev, struct hax_vm_netbsd_t, dev);
     cvm = hax_get_vm(vm->id, 1);
     if (!cvm)
         return -ENODEV;
