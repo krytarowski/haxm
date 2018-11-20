@@ -39,6 +39,9 @@
 
 #include "../../core/include/hax_core_interface.h"
 
+static int hax_vcpu_cmajor = 221, hax_vcpu_bmajor = -1;
+static int hax_vmem_cmajor = 222, hax_vmem_bmajor = -1;
+
 #define HAX_VM_DEVFS_FMT    "hax_vm/vm%02d"
 #define HAX_VCPU_DEVFS_FMT  "hax_vm%02d/vcpu%02d"
 
@@ -65,36 +68,6 @@ dev_type_open(hax_vcpu_open);
 dev_type_close(hax_vcpu_close);
 dev_type_ioctl(hax_vcpu_ioctl);
 
-static struct cdevsw hax_vm_cdevsw = {
-        .d_open = hax_vm_open,
-        .d_close = hax_vm_close,
-        .d_read = noread,
-        .d_write = nowrite,
-        .d_ioctl = hax_vm_ioctl,
-        .d_stop = nostop,
-        .d_tty = notty,
-        .d_poll = nopoll,
-        .d_mmap = nommap,
-        .d_kqfilter = nokqfilter,
-        .d_discard = nodiscard,
-        .d_flag = D_OTHER
-};
-
-static struct cdevsw hax_vcpu_cdevsw = {
-        .d_open = hax_vcpu_open,
-        .d_close = hax_vcpu_close,
-        .d_read = noread,
-        .d_write = nowrite,
-        .d_ioctl = hax_vcpu_ioctl,
-        .d_stop = nostop,
-        .d_tty = notty,
-        .d_poll = nopoll,
-        .d_mmap = nommap,
-        .d_kqfilter = nokqfilter,
-        .d_discard = nodiscard,
-        .d_flag = D_OTHER
-};
-
 /* Component management */
 
 static hax_vcpu_netbsd_t* hax_vcpu_create_netbsd(struct vcpu_t *cvcpu,
@@ -107,9 +80,6 @@ static hax_vcpu_netbsd_t* hax_vcpu_create_netbsd(struct vcpu_t *cvcpu,
         return NULL;
 
     vcpu = kmem_zalloc(sizeof(hax_vcpu_netbsd_t), KM_SLEEP);
-    if (!vcpu)
-        return NULL;
-
     vcpu->cvcpu = cvcpu;
     vcpu->id = vcpu_id;
     vcpu->vm = vm;
@@ -143,19 +113,27 @@ int hax_vcpu_create_host(struct vcpu_t *cvcpu, void *vm_host, int vm_id,
     if (!vcpu)
         return -1;
 
-    vcpu->devname = kmalloc(DM_NAME_LEN, GFP_KERNEL);
-    snprintf(vcpu->devname, DM_NAME_LEN, HAX_VCPU_DEVFS_FMT, vm_id, vcpu_id);
-    vcpu->dev.minor = MISC_DYNAMIC_MINOR;
-    vcpu->dev.name = vcpu->devname;
-    vcpu->dev.fops = &hax_vcpu_fops;
+    vcpu->devname = kmem_asprintf(HAX_VCPU_DEVFS_FMT, vm_id, vcpu_id);
+    vcpu->dev.d_open = hax_vcpu_open;
+    vcpu->dev.d_close = hax_vcpu_close;
+    vcpu->dev.d_read = noread;
+    vcpu->dev.d_write = nowrite;
+    vcpu->dev.d_ioctl = hax_vcpu_ioctl;
+    vcpu->dev.d_stop = nostop;
+    vcpu->dev.d_tty = notty;
+    vcpu->dev.d_poll = nopoll;
+    vcpu->dev.d_mmap = nommap;
+    vcpu->dev.d_kqfilter = nokqfilter;
+    vcpu->dev.d_discard = nodiscard;
+    vcpu->dev.d_flag = D_OTHER;
 
-    err = misc_register(&vcpu->dev);
+    err = devsw_attach(vcpu->devname, NULL, &hax_vcpu_bmajor, &vcpu->dev, &hax_vcpu_cmajor);
     if (err) {
         hax_error("Failed to register HAXM-VCPU device\n");
         hax_vcpu_destroy_netbsd(vcpu);
         return -1;
     }
-    hax_info("Created HAXM-VCPU device with minor=%d\n", vcpu->dev.minor);
+    hax_info("Created HAXM-VCPU device '%s'\n", vcpu->devname);
     return 0;
 }
 
@@ -164,8 +142,8 @@ int hax_vcpu_destroy_host(struct vcpu_t *cvcpu, void *vcpu_host)
     hax_vcpu_netbsd_t *vcpu;
 
     vcpu = (hax_vcpu_netbsd_t *)vcpu_host;
-    misc_deregister(&vcpu->dev);
-    kfree(vcpu->devname);
+    devsw_detach(NULL, &vcpu->dev);
+    kmem_free(vcpu->devname, strlen(vcpu->devname) + 1);
 
     hax_vcpu_destroy_netbsd(vcpu);
     return 0;
@@ -178,11 +156,7 @@ static hax_vm_netbsd_t *hax_vm_create_netbsd(struct vm_t *cvm, int vm_id)
     if (!cvm)
         return NULL;
 
-    vm = kmalloc(sizeof(hax_vm_netbsd_t), GFP_KERNEL);
-    if (!vm)
-        return NULL;
-
-    memset(vm, 0, sizeof(hax_vm_netbsd_t));
+    vm = kmem_zalloc(sizeof(hax_vm_netbsd_t), KM_SLEEP);
     vm->cvm = cvm;
     vm->id = vm_id;
     set_vm_host(cvm, vm);
@@ -200,7 +174,7 @@ static void hax_vm_destroy_netbsd(hax_vm_netbsd_t *vm)
     set_vm_host(cvm, NULL);
     vm->cvm = NULL;
     hax_vm_free_all_ram(cvm);
-    kfree(vm);
+    kmem_free(vm, sizeof(hax_vm_netbsd_t));
 }
 
 int hax_vm_create_host(struct vm_t *cvm, int vm_id)
@@ -212,19 +186,27 @@ int hax_vm_create_host(struct vm_t *cvm, int vm_id)
     if (!vm)
         return -1;
 
-    vm->devname = kmalloc(DM_NAME_LEN, GFP_KERNEL);
-    snprintf(vm->devname, DM_NAME_LEN, HAX_VM_DEVFS_FMT, vm_id);
-    vm->dev.minor = MISC_DYNAMIC_MINOR;
-    vm->dev.name = vm->devname;
-    vm->dev.fops = &hax_vm_fops;
+    vm->devname = kmem_asprintf(HAX_VM_DEVFS_FMT, vm_id);
+    vm->dev.d_open = hax_vm_open;
+    vm->dev.d_close = hax_vm_close;
+    vm->dev.d_read = noread;
+    vm->dev.d_write = nowrite;
+    vm->dev.d_ioctl = hax_vm_ioctl;
+    vm->dev.d_stop = nostop;
+    vm->dev.d_tty = notty;
+    vm->dev.d_poll = nopoll;
+    vm->dev.d_mmap = nommap;
+    vm->dev.d_kqfilter = nokqfilter;
+    vm->dev.d_discard = nodiscard;
+    vm->dev.d_flag = D_OTHER;
 
-    err = misc_register(&vm->dev);
+    err = devsw_attach(vm->devname, NULL, &hax_vm_bmajor, &vm->dev, &hax_vm_cmajor);
     if (err) {
         hax_error("Failed to register HAXM-VM device\n");
         hax_vm_destroy_netbsd(vm);
         return -1;
     }
-    hax_info("Created HAXM-VM device with minor=%d\n", vm->dev.minor);
+    hax_info("Created HAXM-VM device '%s'\n", vm->devname);
     return 0;
 }
 
@@ -234,8 +216,8 @@ int hax_vm_destroy_host(struct vm_t *cvm, void *vm_host)
     hax_vm_netbsd_t *vm;
 
     vm = (hax_vm_netbsd_t *)vm_host;
-    misc_deregister(&vm->dev);
-    kfree(vm->devname);
+    devsw_detach(NULL, &vm->dev);
+    kmem_free(vm->devname, strlen(vm->devname) + 1);
 
     hax_vm_destroy_netbsd(vm);
     return 0;
@@ -249,7 +231,8 @@ int hax_destroy_host_interface(void)
 
 /* VCPU operations */
 
-static int hax_vcpu_open(struct inode *inodep, struct file *filep)
+static int hax_vcpu_open(dev_t self __unused, int flag __unused, int mode __unused,
+                         struct lwp *l __unused)
 {
     int ret;
     struct vcpu_t *cvcpu;
