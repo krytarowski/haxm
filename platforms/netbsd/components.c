@@ -28,6 +28,14 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include <sys/param.h>
+#include <sys/conf.h>
+#include <sys/device.h>
+#include <sys/kernel.h>
+#include <sys/lwp.h>
+#include <sys/proc.h>
+#include <sys/module.h>
+
 #include "../../core/include/hax_core_interface.h"
 
 #define HAX_VM_DEVFS_FMT    "hax_vm/vm%02d"
@@ -36,7 +44,7 @@
 typedef struct hax_vm_netbsd_t {
     struct vm_t *cvm;
     int id;
-    struct miscdevice dev;
+    struct cdevsw dev;
     char *devname;
 } hax_vm_netbsd_t;
 
@@ -44,34 +52,46 @@ typedef struct hax_vcpu_netbsd_t {
     struct vcpu_t *cvcpu;
     struct hax_vm_netbsd_t *vm;
     int id;
-    struct miscdevice dev;
+    struct cdevsw dev;
     char *devname;
 } hax_vcpu_netbsd_t;
 
-static int hax_vm_open(struct inode *inodep, struct file *filep);
-static int hax_vm_release(struct inode *inodep, struct file *filep);
-static long hax_vm_ioctl(struct file *filp, unsigned int cmd,
-                         unsigned long arg);
+dev_type_open(hax_vm_open);
+dev_type_close(hax_vm_close);
+dev_type_ioctl(hax_vm_ioctl);
 
-static int hax_vcpu_open(struct inode *inodep, struct file *filep);
-static int hax_vcpu_release(struct inode *inodep, struct file *filep);
-static long hax_vcpu_ioctl(struct file *filp, unsigned int cmd,
-                           unsigned long arg);
+dev_type_open(hax_vcpu_open);
+dev_type_close(hax_vcpu_close);
+dev_type_ioctl(hax_vcpu_ioctl);
 
-static struct file_operations hax_vm_fops = {
-    .owner          = THIS_MODULE,
-    .open           = hax_vm_open,
-    .release        = hax_vm_release,
-    .unlocked_ioctl = hax_vm_ioctl,
-    .compat_ioctl   = hax_vm_ioctl,
+static struct cdevsw hax_vm_cdevsw = {
+        .d_open = hax_vm_open,
+        .d_close = hax_vm_close,
+        .d_read = noread,
+        .d_write = nowrite,
+        .d_ioctl = hax_vm_ioctl,
+        .d_stop = nostop,
+        .d_tty = notty,
+        .d_poll = nopoll,
+        .d_mmap = nommap,
+        .d_kqfilter = nokqfilter,
+        .d_discard = nodiscard,
+        .d_flag = D_OTHER
 };
 
-static struct file_operations hax_vcpu_fops = {
-    .owner          = THIS_MODULE,
-    .open           = hax_vcpu_open,
-    .release        = hax_vcpu_release,
-    .unlocked_ioctl = hax_vcpu_ioctl,
-    .compat_ioctl   = hax_vcpu_ioctl,
+static struct cdevsw hax_vcpu_cdevsw = {
+        .d_open = hax_vcpu_open,
+        .d_close = hax_vcpu_close,
+        .d_read = noread,
+        .d_write = nowrite,
+        .d_ioctl = hax_vcpu_ioctl,
+        .d_stop = nostop,
+        .d_tty = notty,
+        .d_poll = nopoll,
+        .d_mmap = nommap,
+        .d_kqfilter = nokqfilter,
+        .d_discard = nodiscard,
+        .d_flag = D_OTHER
 };
 
 /* Component management */
