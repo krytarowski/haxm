@@ -31,12 +31,6 @@
 #include "../../include/hax_host_mem.h"
 #include "../../core/include/paging.h"
 
-#include <linux/mm.h>
-#include <linux/pagemap.h>
-#include <linux/slab.h>
-#include <linux/version.h>
-#include <linux/vmalloc.h>
-
 int hax_pin_user_pages(uint64_t start_uva, uint64_t size, hax_memdesc_user *memdesc)
 {
     int nr_pages;
@@ -72,11 +66,7 @@ int hax_unpin_user_pages(hax_memdesc_user *memdesc)
     if (!memdesc->pages)
         return -EINVAL;
     
-#if LINUX_VERSION_CODE <= KERNEL_VERSION(4,15,0)
-    release_pages(memdesc->pages, memdesc->nr_pages, 1);
-#else
     release_pages(memdesc->pages, memdesc->nr_pages);
-#endif
     return 0;
 }
 
