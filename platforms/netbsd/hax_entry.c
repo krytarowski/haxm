@@ -150,7 +150,7 @@ static int hax_driver_init(void)
         return ENXIO;
     }
 
-    hax_info("Created HAXM device with minor=%d\n", hax_cmajor);
+    hax_info("Created HAXM device\n");
     return 0;
 }
 
