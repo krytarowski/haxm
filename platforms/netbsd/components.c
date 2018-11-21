@@ -45,6 +45,7 @@ static int hax_vm_cmajor = 222, hax_vm_bmajor = -1;
 #define HAX_VM_DEVFS_FMT    "hax_vm/vm%02d"
 #define HAX_VCPU_DEVFS_FMT  "hax_vm%02d/vcpu%02d"
 
+
 typedef struct hax_vm_netbsd_t {
     struct vm_t *cvm;
     int id;
@@ -59,6 +60,23 @@ typedef struct hax_vcpu_netbsd_t {
     struct cdevsw dev;
     char *devname;
 } hax_vcpu_netbsd_t;
+
+
+struct hax_vm_softc {
+    device_t sc_dev;
+    struct hax_vm_netbsd_t *vm;
+};
+
+static device_t hax_vm_sc_self;
+
+extern struct cfdriver hax_vm_cd;
+
+static int hax_vm_match(device_t, cfdata_t, void *);
+static void hax_vm_attach(device_t, device_t, void *);
+static int hax_vm_detach(device_t, int);
+
+CFATTACH_DECL_NEW(hax_vm, sizeof(struct hax_vm_softc),
+        hax_vm_match, hax_vm_attach, hax_vm_detach, NULL);
 
 struct hax_vcpu_softc {
     device_t sc_dev;
@@ -413,16 +431,16 @@ int hax_vcpu_ioctl(dev_t self, u_long cmd, void *data, int flag,
 
 /* VM operations */
 
-int hax_vm_open(dev_t self __unused, int flag __unused, int mode __unused,
+int hax_vm_open(dev_t self, int flag __unused, int mode __unused,
           struct lwp *l __unused)
 {
-    int ret;
+    struct hax_vm_softc *sc;
     struct vm_t *cvm;
     struct hax_vm_netbsd_t *vm;
-    struct miscdevice *miscdev;
+    int ret;
 
-    miscdev = filep->private_data;
-    vm = container_of(miscdev, struct hax_vm_netbsd_t, dev);
+    sc = device_lookup_private(&hax_vm_cd, minor(self));
+    vm = sc->vm;
     cvm = hax_get_vm(vm->id, 1);
     if (!cvm)
         return -ENODEV;
@@ -436,12 +454,13 @@ int hax_vm_open(dev_t self __unused, int flag __unused, int mode __unused,
 int hax_vm_close(dev_t self __unused, int flag __unused, int mode __unused,
            struct lwp *l __unused)
 {
+    struct hax_vm_softc *sc;
     struct vm_t *cvm;
     struct hax_vm_netbsd_t *vm;
-    struct miscdevice *miscdev;
+    int ret;
 
-    miscdev = filep->private_data;
-    vm = container_of(miscdev, struct hax_vm_netbsd_t, dev);
+    sc = device_lookup_private(&hax_vm_cd, minor(self));
+    vm = sc->vm;
     cvm = hax_get_vm(vm->id, 1);
 
     hax_log_level(HAX_LOGI, "Close VM\n");
@@ -457,13 +476,12 @@ int hax_vm_ioctl(dev_t self __unused, u_long cmd, void *data, int flag,
            struct lwp *l __unused)
 {
     int ret = 0;
-    void *argp = (void *)arg;
     struct vm_t *cvm;
     struct hax_vm_netbsd_t *vm;
-    struct miscdevice *miscdev;
+    struct hax_vm_softc *sc;
 
-    miscdev = filp->private_data;
-    vm = container_of(miscdev, struct hax_vm_netbsd_t, dev);
+    sc = device_lookup_private(&hax_vm_cd, minor(self));
+    vm = sc->vm;
     cvm = hax_get_vm(vm->id, 1);
     if (!cvm)
         return -ENODEV;
@@ -471,108 +489,122 @@ int hax_vm_ioctl(dev_t self __unused, u_long cmd, void *data, int flag,
     switch (cmd) {
     case HAX_VM_IOCTL_VCPU_CREATE:
     case HAX_VM_IOCTL_VCPU_CREATE_ORIG: {
-        uint32_t vcpu_id, vm_id;
+        uint32_t *vcpu_id, vm_id;
+        vcpu_id = (uint32_t *)data;
         struct vcpu_t *cvcpu;
 
         vm_id = vm->id;
-        if (copy_from_user(&vcpu_id, argp, sizeof(vcpu_id))) {
-            ret = -EFAULT;
-            break;
-        }
-        cvcpu = vcpu_create(cvm, vm, vcpu_id);
+        cvcpu = vcpu_create(cvm, vm, *vcpu_id);
         if (!cvcpu) {
-            hax_error("Failed to create vcpu %x on vm %x\n", vcpu_id, vm_id);
+            hax_error("Failed to create vcpu %x on vm %x\n", *vcpu_id, vm_id);
             ret = -EINVAL;
             break;
         }
         break;
     }
     case HAX_VM_IOCTL_ALLOC_RAM: {
-        struct hax_alloc_ram_info info;
-        if (copy_from_user(&info, argp, sizeof(info))) {
-            ret = -EFAULT;
-            break;
-        }
+        struct hax_alloc_ram_info *info;
+        info = (struct hax_alloc_ram_info *)data;
         hax_info("IOCTL_ALLOC_RAM: vm_id=%d, va=0x%llx, size=0x%x, pad=0x%x\n",
-                 vm->id, info.va, info.size, info.pad);
-        ret = hax_vm_add_ramblock(cvm, info.va, info.size);
+                 vm->id, info->va, info->size, info->pad);
+        ret = hax_vm_add_ramblock(cvm, info->va, info->size);
         break;
     }
     case HAX_VM_IOCTL_ADD_RAMBLOCK: {
-        struct hax_ramblock_info info;
-        if (copy_from_user(&info, argp, sizeof(info))) {
-            ret = -EFAULT;
-            break;
-        }
-        if (info.reserved) {
+        struct hax_ramblock_info *info;
+        info = (struct hax_ramblock_info *)data;
+        if (info->reserved) {
             hax_error("IOCTL_ADD_RAMBLOCK: vm_id=%d, reserved=0x%llx\n",
-                      vm->id, info.reserved);
-            ret = -EINVAL;
+                      vm->id, info->reserved);
+            ret = EINVAL;
             break;
         }
         hax_info("IOCTL_ADD_RAMBLOCK: vm_id=%d, start_va=0x%llx, size=0x%llx\n",
-                 vm->id, info.start_va, info.size);
-        ret = hax_vm_add_ramblock(cvm, info.start_va, info.size);
+                 vm->id, info->start_va, info->size);
+        ret = hax_vm_add_ramblock(cvm, info->start_va, info->size);
         break;
     }
     case HAX_VM_IOCTL_SET_RAM: {
-        struct hax_set_ram_info info;
-        if (copy_from_user(&info, argp, sizeof(info))) {
-            ret = -EFAULT;
-            break;
-        }
-        ret = hax_vm_set_ram(cvm, &info);
+        struct hax_set_ram_info *info;
+        info = (struct hax_set_ram_info *)data;
+        ret = hax_vm_set_ram(cvm, info);
         break;
     }
 #ifdef CONFIG_HAX_EPT2
     case HAX_VM_IOCTL_SET_RAM2: {
-        struct hax_set_ram_info2 info;
-        if (copy_from_user(&info, argp, sizeof(info))) {
-            ret = -EFAULT;
-            break;
-        }
-        if (info.reserved1 || info.reserved2) {
+        struct hax_set_ram_info2 *info;
+        info = (struct hax_set_ram_info2 *)data;
+        if (info->reserved1 || info->reserved2) {
             hax_error("IOCTL_SET_RAM2: vm_id=%d, reserved1=0x%x reserved2=0x%llx\n",
-                      vm->id, info.reserved1, info.reserved2);
-            ret = -EINVAL;
+                      vm->id, info->reserved1, info->reserved2);
+            ret = EINVAL;
             break;
         }
-        ret = hax_vm_set_ram2(cvm, &info);
+        ret = hax_vm_set_ram2(cvm, info);
         break;
     }
     case HAX_VM_IOCTL_PROTECT_RAM: {
-        struct hax_protect_ram_info info;
-        if (copy_from_user(&info, argp, sizeof(info))) {
-            ret = -EFAULT;
-            break;
-        }
-        if (info.reserved) {
+        struct hax_protect_ram_info *info;
+        info = (struct hax_protect_ram_info *)data;
+        if (info->reserved) {
             hax_error("IOCTL_PROTECT_RAM: vm_id=%d, reserved=0x%x\n",
-                      vm->id, info.reserved);
-            ret = -EINVAL;
+                      vm->id, info->reserved);
+            ret = EINVAL;
             break;
         }
-        ret = hax_vm_protect_ram(cvm, &info);
+        ret = hax_vm_protect_ram(cvm, info);
         break;
     }
 #endif
     case HAX_VM_IOCTL_NOTIFY_QEMU_VERSION: {
-        struct hax_qemu_version info;
-        if (copy_from_user(&info, argp, sizeof(info))) {
-            ret = -EFAULT;
-            break;
-        }
+        struct hax_qemu_version *info;
+        info = (struct hax_qemu_version *)data;
         // TODO: Print information about the process that sent the ioctl.
-        ret = hax_vm_set_qemuversion(cvm, &info);
+        ret = hax_vm_set_qemuversion(cvm, info);
         break;
     }
     default:
         // TODO: Print information about the process that sent the ioctl.
-        hax_error("Unknown VM IOCTL 0x%lx\n", cmd);
+        hax_error("Unknown VM IOCTL %#lx, pid=%d ('%s')\n", cmd,
+                  l->l_proc->p_pid, l->l_proc->p_comm);
         break;
     }
     hax_put_vm(cvm);
     return ret;
+}
+
+static int
+hax_vm_match(device_t parent, cfdata_t match, void *aux)
+{
+    return 1;
+}
+
+static void
+hax_vm_attach(device_t parent, device_t self, void *aux)
+{
+    struct hax_vm_softc *sc;
+
+    if (hax_vm_sc_self)
+        return;
+
+    sc = device_private(self);
+    sc->sc_dev = self;
+    hax_vm_sc_self = self;
+
+    if (!pmf_device_register(self, NULL, NULL))
+        aprint_error_dev(self, "couldn't establish power handler\n");
+}
+
+static int
+hax_vm_detach(device_t self, int flags)
+{
+    struct hax_vm_softc *sc;
+
+    sc = device_private(self);
+    pmf_device_deregister(self);
+
+    hax_vm_sc_self = NULL;
+    return 0;
 }
 
 static int
@@ -591,7 +623,7 @@ hax_vcpu_attach(device_t parent, device_t self, void *aux)
 
     sc = device_private(self);
     sc->sc_dev = self;
-    sc_self = self;
+    hax_vcpu_sc_self = self;
 
     if (!pmf_device_register(self, NULL, NULL))
         aprint_error_dev(self, "couldn't establish power handler\n");
@@ -605,6 +637,6 @@ hax_vcpu_detach(device_t self, int flags)
     sc = device_private(self);
     pmf_device_deregister(self);
 
-    sc_self = NULL;
+    hax_vcpu_sc_self = NULL;
     return 0;
 }
