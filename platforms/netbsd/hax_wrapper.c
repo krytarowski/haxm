@@ -28,6 +28,8 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include <machine/cpufunc.h>
+
 #include "../../include/hax.h"
 #include "../../core/include/hax_core_interface.h"
 #include "../../core/include/ia32.h"
