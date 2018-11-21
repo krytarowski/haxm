@@ -28,14 +28,60 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include <sys/param.h>
+#include <sys/types.h>
+#include <sys/kmem.h>
+#include <uvm/uvm.h>
+
 #include "../../include/hax_host_mem.h"
 #include "../../core/include/paging.h"
 
+size_t
+get_user_pages(uint64_t start_uva, size_t nr_pages, struct vm_page **pages)
+{
+    struct vm_map *map;
+    paddr_t pa;
+    uint64_t va, end_uva;
+    size_t i;
+
+    map = &curproc->p_vmspace->vm_map;
+
+    end_uva = start_uva + (nr_pages << PAGE_SHIFT);
+    if (start_uva < vm_map_min(map) || end_uva > vm_map_max(map))
+        return 0;
+    i = 0;
+    for (va = start_uva; va < end_uva; va += PAGE_SIZE) {
+        if (!pmap_extract(map->pmap, va, &pa))
+            break;
+        pages[i] = PHYS_TO_VM_PAGE(pa);
+        mutex_enter(&uvm_pageqlock);
+        uvm_pagewire(pages[i]);
+        mutex_exit(&uvm_pageqlock);
+        CLR(pages[i]->flags, PG_CLEAN);
+        ++i;
+    }
+    return i;
+}
+
+void
+release_pages(struct vm_page **pages, size_t nr_pages)
+{
+    size_t i;
+
+    for(i = 0; i < nr_pages; i++) {
+        mutex_enter(&uvm_pageqlock);
+        uvm_pagewire(pages[i]);
+        mutex_exit(&uvm_pageqlock);
+    }
+}
+
+#define page_to_pfn(pp) (VM_PAGE_TO_PHYS(pp) >> PAGE_SHIFT)
+
 int hax_pin_user_pages(uint64_t start_uva, uint64_t size, hax_memdesc_user *memdesc)
 {
-    int nr_pages;
-    int nr_pages_pinned;
-    struct page **pages;
+    size_t nr_pages;
+    size_t nr_pages_pinned;
+    struct vm_page **pages;
 
     if (start_uva & ~PAGE_MASK)
         return -EINVAL;
@@ -45,16 +91,15 @@ int hax_pin_user_pages(uint64_t start_uva, uint64_t size, hax_memdesc_user *memd
         return -EINVAL;
     
     nr_pages = ((size - 1) / PAGE_SIZE) + 1;
-    pages = kmalloc(sizeof(struct page *) * nr_pages, GFP_KERNEL);
-    if (!pages)
-        return -ENOMEM;
+    pages = kmem_alloc(sizeof(struct vm_page *) * nr_pages, KM_SLEEP);
 
-    nr_pages_pinned = get_user_pages_fast(start_uva, nr_pages, 1, pages);
-    if (nr_pages_pinned < 0) {
-        kfree(pages);
+    nr_pages_pinned = get_user_pages(start_uva, nr_pages, pages);
+    if (nr_pages_pinned <= 0) {
+        kmem_free(pages, sizeof(struct vm_page *) * nr_pages);
         return -EFAULT;
     }
-    memdesc->nr_pages = nr_pages_pinned;
+    memdesc->nr_pages = nr_pages;
+    memdesc->nr_pages_pinned = nr_pages_pinned;
     memdesc->pages = pages;
     return 0;
 }
@@ -65,8 +110,10 @@ int hax_unpin_user_pages(hax_memdesc_user *memdesc)
         return -EINVAL;
     if (!memdesc->pages)
         return -EINVAL;
+    if (memdesc->nr_pages_pinned == 0)
+        return -EINVAL;
     
-    release_pages(memdesc->pages, memdesc->nr_pages);
+    release_pages(memdesc->pages, memdesc->nr_pages_pinned);
     return 0;
 }
 
@@ -88,7 +135,7 @@ void * hax_map_user_pages(hax_memdesc_user *memdesc, uint64_t uva_offset,
     int page_idx_start;
     int page_idx_stop;
     int subrange_pages_nr;
-    struct page **subrange_pages;
+    struct vm_page **subrange_pages;
 
     if (!memdesc || !kmap || size == 0)
         return NULL;

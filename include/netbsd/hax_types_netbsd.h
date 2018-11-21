@@ -62,7 +62,7 @@ typedef mword HAX_VADDR_T;
 #include "../hax_list.h"
 struct hax_page {
     void *kva;
-    struct page *page;
+    struct vm_page *page;
     uint64_t pa;
     uint32_t order;
     uint32_t flags;
@@ -71,8 +71,9 @@ struct hax_page {
 };
 
 typedef struct hax_memdesc_user {
-    int nr_pages;
-    struct page **pages;
+    size_t nr_pages;
+    size_t nr_pages_pinned;
+    struct vm_page **pages;
 } hax_memdesc_user;
 
 typedef struct hax_kmap_user {
@@ -80,7 +81,7 @@ typedef struct hax_kmap_user {
 } hax_kmap_user;
 
 typedef struct hax_memdesc_phys {
-    struct page *ppage;
+    struct vm_page *ppage;
 } hax_memdesc_phys;
 
 typedef struct hax_kmap_phys {
