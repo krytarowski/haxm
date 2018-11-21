@@ -28,7 +28,12 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include <sys/param.h>
+#include <sys/types.h>
+#include <sys/systm.h>
+#include <machine/cpu.h>
 #include <machine/cpufunc.h>
+
 
 #include "../../include/hax.h"
 #include "../../core/include/hax_core_interface.h"
@@ -52,7 +57,7 @@ int hax_log_level(int level, const char *fmt,  ...)
 
 uint32_t hax_cpuid(void)
 {
-    return hax_cpu_number();
+    return curcpu()->ci_cpuid;
 }
 
 typedef struct smp_call_parameter {
