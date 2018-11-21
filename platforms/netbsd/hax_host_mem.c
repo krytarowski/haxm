@@ -28,10 +28,13 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
+#define __HAVE_DIRECT_MAP
+
 #include <sys/param.h>
 #include <sys/types.h>
 #include <sys/kmem.h>
 #include <uvm/uvm.h>
+#include <machine/pmap.h>
 
 #include "../../include/hax_host_mem.h"
 #include "../../core/include/paging.h"
@@ -101,7 +104,7 @@ pfn_to_page(unsigned long pfn)
 static inline void *
 page_address(struct vm_page *page)
 {
-	return (void *)(unsigned long)(page_to_pfn(page) << PAGE_SHIFT);
+	return (void *)(PMAP_MAP_POOLPAGE(VM_PAGE_TO_PHYS(page)));
 }
 
 
