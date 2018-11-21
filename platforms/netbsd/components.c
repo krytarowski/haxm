@@ -40,7 +40,7 @@
 #include "../../core/include/hax_core_interface.h"
 
 static int hax_vcpu_cmajor = 221, hax_vcpu_bmajor = -1;
-static int hax_vmem_cmajor = 222, hax_vmem_bmajor = -1;
+static int hax_vm_cmajor = 222, hax_vm_bmajor = -1;
 
 #define HAX_VM_DEVFS_FMT    "hax_vm/vm%02d"
 #define HAX_VCPU_DEVFS_FMT  "hax_vm%02d/vcpu%02d"
@@ -59,6 +59,22 @@ typedef struct hax_vcpu_netbsd_t {
     struct cdevsw dev;
     char *devname;
 } hax_vcpu_netbsd_t;
+
+struct hax_vcpu_softc {
+    device_t sc_dev;
+    struct hax_vcpu_netbsd_t *vcpu;
+};
+
+static device_t hax_vcpu_sc_self;
+
+extern struct cfdriver hax_vcpu_cd;
+
+static int hax_vcpu_match(device_t, cfdata_t, void *);
+static void hax_vcpu_attach(device_t, device_t, void *);
+static int hax_vcpu_detach(device_t, int);
+
+CFATTACH_DECL_NEW(hax_vcpu, sizeof(struct hax_vcpu_softc),
+        hax_vcpu_match, hax_vcpu_attach, hax_vcpu_detach, NULL);
 
 dev_type_open(hax_vm_open);
 dev_type_close(hax_vm_close);
@@ -231,16 +247,16 @@ int hax_destroy_host_interface(void)
 
 /* VCPU operations */
 
-static int hax_vcpu_open(dev_t self __unused, int flag __unused, int mode __unused,
+int hax_vcpu_open(dev_t self, int flag __unused, int mode __unused,
                          struct lwp *l __unused)
 {
-    int ret;
+    struct hax_vcpu_softc *sc;
     struct vcpu_t *cvcpu;
     struct hax_vcpu_netbsd_t *vcpu;
-    struct miscdevice *miscdev;
+    int ret;
 
-    miscdev = filep->private_data;
-    vcpu = container_of(miscdev, struct hax_vcpu_netbsd_t, dev);
+    sc = device_lookup_private(&hax_vcpu_cd, minor(self));
+    vcpu = sc->vcpu;
     cvcpu = hax_get_vcpu(vcpu->vm->id, vcpu->id, 1);
 
     hax_log_level(HAX_LOGD, "HAX vcpu open called\n");
@@ -254,15 +270,16 @@ static int hax_vcpu_open(dev_t self __unused, int flag __unused, int mode __unus
     return ret;
 }
 
-static int hax_vcpu_release(struct inode *inodep, struct file *filep)
+int hax_vcpu_close(dev_t self, int flag __unused, int mode __unused,
+           struct lwp *l __unused)
 {
-    int ret = 0;
+    int ret;
+    struct hax_vcpu_softc *sc;
     struct vcpu_t *cvcpu;
     struct hax_vcpu_netbsd_t *vcpu;
-    struct miscdevice *miscdev;
 
-    miscdev = filep->private_data;
-    vcpu = container_of(miscdev, struct hax_vcpu_netbsd_t, dev);
+    sc = device_lookup_private(&hax_vcpu_cd, minor(self));
+    vcpu = sc->vcpu;
     cvcpu = hax_get_vcpu(vcpu->vm->id, vcpu->id, 1);
 
     hax_log_level(HAX_LOGD, "HAX vcpu close called\n");
@@ -275,148 +292,119 @@ static int hax_vcpu_release(struct inode *inodep, struct file *filep)
     hax_put_vcpu(cvcpu);
     /* put the one just held */
     hax_put_vcpu(cvcpu);
-    return ret;
+
+    return 0;
 }
 
-static long hax_vcpu_ioctl(struct file *filp, unsigned int cmd,
-                           unsigned long arg)
+int hax_vcpu_ioctl(dev_t self, u_long cmd, void *data, int flag,
+           struct lwp *l __unused)                         
 {
     int ret = 0;
-    void *argp = (void *)arg;
+    struct hax_vcpu_softc *sc;
     struct vcpu_t *cvcpu;
     struct hax_vcpu_netbsd_t *vcpu;
-    struct miscdevice *miscdev;
 
-    miscdev = filp->private_data;
-    vcpu = container_of(miscdev, struct hax_vcpu_netbsd_t, dev);
+    sc = device_lookup_private(&hax_vcpu_cd, minor(self));
+    vcpu = sc->vcpu;
     cvcpu = hax_get_vcpu(vcpu->vm->id, vcpu->id, 1);
+
     if (!cvcpu)
-        return -ENODEV;
+        return ENODEV;
 
     switch (cmd) {
     case HAX_VCPU_IOCTL_RUN:
         ret = vcpu_execute(cvcpu);
         break;
     case HAX_VCPU_IOCTL_SETUP_TUNNEL: {
-        struct hax_tunnel_info info;
-        ret = hax_vcpu_setup_hax_tunnel(cvcpu, &info);
-        if (copy_to_user(argp, &info, sizeof(info))) {
-            ret = -EFAULT;
-            break;
-        }
+        struct hax_tunnel_info *info;
+        info = (struct hax_tunnel_info *)data;
+        ret = hax_vcpu_setup_hax_tunnel(cvcpu, info);
         break;
     }
     case HAX_VCPU_IOCTL_SET_MSRS: {
-        struct hax_msr_data msrs;
+        struct hax_msr_data *msrs;
+        msrs = (struct hax_msr_data *)data;
         struct vmx_msr *msr;
         int i, fail;
 
-        if (copy_from_user(&msrs, argp, sizeof(msrs))) {
-            ret = -EFAULT;
-            break;
-        }
-        msr = msrs.entries;
+        msr = msrs->entries;
         /* nr_msr needs to be verified */
-        if (msrs.nr_msr >= 0x20) {
+        if (msrs->nr_msr >= 0x20) {
             hax_error("MSRS invalid!\n");
-            ret = -EFAULT;
+            ret = EFAULT;
             break;
         }
-        for (i = 0; i < msrs.nr_msr; i++, msr++) {
+        for (i = 0; i < msrs->nr_msr; i++, msr++) {
             fail = vcpu_set_msr(cvcpu, msr->entry, msr->value);
             if (fail) {
                 break;
             }
         }
-        msrs.done = i;
+        msrs->done = i;
         break;
     }
     case HAX_VCPU_IOCTL_GET_MSRS: {
-        struct hax_msr_data msrs;
+        struct hax_msr_data *msrs;
+        msrs = (struct hax_msr_data *)data;
         struct vmx_msr *msr;
         int i, fail;
 
-        if (copy_from_user(&msrs, argp, sizeof(msrs))) {
-            ret = -EFAULT;
-            break;
-        }
-        msr = msrs.entries;
-        if(msrs.nr_msr >= 0x20) {
+        msr = msrs->entries;
+        if(msrs->nr_msr >= 0x20) {
             hax_error("MSRS invalid!\n");
-            ret = -EFAULT;
+            ret = EFAULT;
             break;
         }
-        for (i = 0; i < msrs.nr_msr; i++, msr++) {
+        for (i = 0; i < msrs->nr_msr; i++, msr++) {
             fail = vcpu_get_msr(cvcpu, msr->entry, &msr->value);
             if (fail) {
                 break;
             }
         }
-        msrs.done = i;
-        if (copy_to_user(argp, &msrs, sizeof(msrs))) {
-            ret = -EFAULT;
-            break;
-        }
+        msrs->done = i;
         break;
     }
     case HAX_VCPU_IOCTL_SET_FPU: {
-        struct fx_layout fl;
-        if (copy_from_user(&fl, argp, sizeof(fl))) {
-            ret = -EFAULT;
-            break;
-        }
-        ret = vcpu_put_fpu(cvcpu, &fl);
+        struct fx_layout *fl;
+        fl = (struct fx_layout *)data;
+        ret = vcpu_put_fpu(cvcpu, fl);
         break;
     }
     case HAX_VCPU_IOCTL_GET_FPU: {
-        struct fx_layout fl;
-        ret = vcpu_get_fpu(cvcpu, &fl);
-        if (copy_to_user(argp, &fl, sizeof(fl))) {
-            ret = -EFAULT;
-            break;
-        }
+        struct fx_layout *fl;
+        fl = (struct fx_layout *)data;
+        ret = vcpu_get_fpu(cvcpu, fl);
         break;
     }
     case HAX_VCPU_SET_REGS: {
-        struct vcpu_state_t vc_state;
-        if (copy_from_user(&vc_state, argp, sizeof(vc_state))) {
-            ret = -EFAULT;
-            break;
-        }
-        ret = vcpu_set_regs(cvcpu, &vc_state);
+        struct vcpu_state_t *vc_state;
+        vc_state = (struct vcpu_state_t *)data;
+        ret = vcpu_set_regs(cvcpu, vc_state);
         break;
     }
     case HAX_VCPU_GET_REGS: {
-        struct vcpu_state_t vc_state;
-        ret = vcpu_get_regs(cvcpu, &vc_state);
-        if (copy_to_user(argp, &vc_state, sizeof(vc_state))) {
-            ret = -EFAULT;
-            break;
-        }
+        struct vcpu_state_t *vc_state;
+        vc_state = (struct vcpu_state_t *)data;
+        ret = vcpu_get_regs(cvcpu, vc_state);
         break;
     }
     case HAX_VCPU_IOCTL_INTERRUPT: {
-        uint8_t vector;
-        if (copy_from_user(&vector, argp, sizeof(vector))) {
-            ret = -EFAULT;
-            break;
-        }
-        vcpu_interrupt(cvcpu, vector);
+        uint8_t *vector;
+        vector = (uint8_t *)data;
+        vcpu_interrupt(cvcpu, *vector);
         break;
     }
     case HAX_IOCTL_VCPU_DEBUG: {
-        struct hax_debug_t hax_debug;
-        if (copy_from_user(&hax_debug, argp, sizeof(hax_debug))) {
-            ret = -EFAULT;
-            break;
-        }
-        vcpu_debug(cvcpu, &hax_debug);
+        struct hax_debug_t *hax_debug;
+        hax_debug = (struct hax_debug_t *)data;
+        vcpu_debug(cvcpu, hax_debug);
         break;
     }
     default:
         // TODO: Print information about the process that sent the ioctl.
-        hax_error("Unknown VCPU IOCTL 0x%lx\n", cmd);
-        ret = -ENOSYS;
+        hax_error("Unknown VCPU IOCTL %#lx, pid=%d ('%s')\n", cmd,
+                  l->l_proc->p_pid, l->l_proc->p_comm);
+        ret = ENOSYS;
         break;
     }
     hax_put_vcpu(cvcpu);
@@ -425,7 +413,8 @@ static long hax_vcpu_ioctl(struct file *filp, unsigned int cmd,
 
 /* VM operations */
 
-static int hax_vm_open(struct inode *inodep, struct file *filep)
+int hax_vm_open(dev_t self __unused, int flag __unused, int mode __unused,
+          struct lwp *l __unused)
 {
     int ret;
     struct vm_t *cvm;
@@ -444,7 +433,8 @@ static int hax_vm_open(struct inode *inodep, struct file *filep)
     return ret;
 }
 
-static int hax_vm_release(struct inode *inodep, struct file *filep)
+int hax_vm_close(dev_t self __unused, int flag __unused, int mode __unused,
+           struct lwp *l __unused)
 {
     struct vm_t *cvm;
     struct hax_vm_netbsd_t *vm;
@@ -463,8 +453,8 @@ static int hax_vm_release(struct inode *inodep, struct file *filep)
     return 0;
 }
 
-static long hax_vm_ioctl(struct file *filp, unsigned int cmd,
-                         unsigned long arg)
+int hax_vm_ioctl(dev_t self __unused, u_long cmd, void *data, int flag,
+           struct lwp *l __unused)
 {
     int ret = 0;
     void *argp = (void *)arg;
@@ -583,4 +573,38 @@ static long hax_vm_ioctl(struct file *filp, unsigned int cmd,
     }
     hax_put_vm(cvm);
     return ret;
+}
+
+static int
+hax_vcpu_match(device_t parent, cfdata_t match, void *aux)
+{
+    return 1;
+}
+
+static void
+hax_vcpu_attach(device_t parent, device_t self, void *aux)
+{
+    struct hax_vcpu_softc *sc;
+
+    if (hax_vcpu_sc_self)
+        return;
+
+    sc = device_private(self);
+    sc->sc_dev = self;
+    sc_self = self;
+
+    if (!pmf_device_register(self, NULL, NULL))
+        aprint_error_dev(self, "couldn't establish power handler\n");
+}
+
+static int
+hax_vcpu_detach(device_t self, int flags)
+{
+    struct hax_vcpu_softc *sc;
+
+    sc = device_private(self);
+    pmf_device_deregister(self);
+
+    sc_self = NULL;
+    return 0;
 }
