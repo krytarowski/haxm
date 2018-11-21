@@ -30,9 +30,6 @@
 
 #include "../../include/hax.h"
 
-#include <linux/mm.h>
-#include <linux/slab.h>
-
 void * hax_vmalloc(uint32_t size, uint32_t flags)
 {
     void *ptr;
