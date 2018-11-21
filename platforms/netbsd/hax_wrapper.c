@@ -32,37 +32,25 @@
 #include "../../core/include/hax_core_interface.h"
 #include "../../core/include/ia32.h"
 
-#include <linux/atomic.h>
-#include <linux/mutex.h>
-#include <linux/slab.h>
-#include <linux/spinlock.h>
-#include <linux/spinlock_types.h>
-
-#include <asm/cmpxchg.h>
-
 int default_hax_log_level = 3;
 int max_cpus;
 hax_cpumap_t cpu_online_map;
 
 int hax_log_level(int level, const char *fmt,  ...)
 {
-    struct va_format vaf;
     va_list args;
-
-    if (level < default_hax_log_level)
-        return 0;
-
-    vaf.fmt = fmt;
-    vaf.va = &args;
     va_start(args, fmt);
-    printk("%shaxm: %pV", KERN_ERR, &vaf);
+    if (level >= default_hax_log_level) {
+        printf("haxm: ");
+        printf(fmt, args);
+    }
     va_end(args);
     return 0;
 }
 
 uint32_t hax_cpuid(void)
 {
-    return smp_processor_id();
+    return hax_cpu_number();
 }
 
 typedef struct smp_call_parameter {
@@ -113,12 +101,12 @@ void hax_enable_preemption(preempt_flag *eflags)
 
 void hax_enable_irq(void)
 {
-    asm_enable_irq();
+    x86_enable_intr();
 }
 
 void hax_disable_irq(void)
 {
-    asm_disable_irq();
+    x86_disable_intr();
 }
 
 void hax_error(char *fmt, ...)
