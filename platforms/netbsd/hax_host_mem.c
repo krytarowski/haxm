@@ -75,7 +75,89 @@ release_pages(struct vm_page **pages, size_t nr_pages)
     }
 }
 
-#define page_to_pfn(pp) (VM_PAGE_TO_PHYS(pp) >> PAGE_SHIFT)
+#define PAGE_KERNEL     UVM_PROT_RW
+#define VM_MAP 0
+
+typedef unsigned pgprot_t;
+
+static inline uint64_t
+page_to_phys(struct vm_page *page)
+{
+        return VM_PAGE_TO_PHYS(page);
+}
+
+static inline unsigned long
+page_to_pfn(struct vm_page *page)
+{
+        return (page_to_phys(page) >> PAGE_SHIFT);
+}
+
+static inline struct vm_page *
+pfn_to_page(unsigned long pfn)
+{
+        return (PHYS_TO_VM_PAGE((pfn) << PAGE_SHIFT));
+}
+
+static inline void *
+page_address(struct vm_page *page)
+{
+	return (void *)(unsigned long)(page_to_pfn(page) << PAGE_SHIFT);
+}
+
+
+static inline void *
+vmap(struct vm_page **pages, unsigned npages, unsigned long flags,
+    pgprot_t protflags)
+{
+        vm_prot_t justprot = protflags & UVM_PROT_ALL;
+        vaddr_t va;
+        unsigned i;
+
+        /* Allocate some KVA, or return NULL if we can't.  */
+        va = uvm_km_alloc(kernel_map, (vsize_t)npages << PAGE_SHIFT, PAGE_SIZE,
+            UVM_KMF_VAONLY|UVM_KMF_NOWAIT);
+        if (va == 0)
+                return NULL;
+
+        /* Ask pmap to map the KVA to the specified page addresses.  */
+        for (i = 0; i < npages; i++) {
+                pmap_kenter_pa(va + i*PAGE_SIZE, page_to_phys(pages[i]),
+                    justprot, protflags);
+        }
+
+        /* Commit the pmap updates.  */
+        pmap_update(pmap_kernel());
+
+        return (void *)va;
+}
+
+static inline void
+vfree(void *ptr)
+{
+	if (ptr == NULL)
+		return;
+	uvm_km_free(kernel_map, (vaddr_t)ptr, (vsize_t)1 << PAGE_SHIFT, UVM_KMF_VAONLY|UVM_KMF_NOWAIT);
+	pmap_update(pmap_kernel());
+}
+
+static inline void
+vunmap(void *ptr, unsigned npages)
+{
+        vaddr_t va = (vaddr_t)ptr;
+
+        /* Ask pmap to unmap the KVA.  */
+        pmap_kremove(va, (vsize_t)npages << PAGE_SHIFT);
+
+        /* Commit the pmap updates.  */
+        pmap_update(pmap_kernel());
+
+        /*
+         * Now that the pmap is no longer mapping the KVA we allocated
+         * on any CPU, it is safe to free the KVA.
+         */
+        uvm_km_free(kernel_map, va, (vsize_t)npages << PAGE_SHIFT,
+            UVM_KMF_VAONLY);
+}
 
 int hax_pin_user_pages(uint64_t start_uva, uint64_t size, hax_memdesc_user *memdesc)
 {
@@ -150,6 +232,7 @@ void * hax_map_user_pages(hax_memdesc_user *memdesc, uint64_t uva_offset,
     subrange_pages = &memdesc->pages[page_idx_start];
     kva = vmap(subrange_pages, subrange_pages_nr, VM_MAP, PAGE_KERNEL);
     kmap->kva = kva;
+    kmap->npages = subrange_pages_nr;
     return kva;
 }
 
@@ -158,29 +241,25 @@ int hax_unmap_user_pages(hax_kmap_user *kmap)
     if (!kmap)
         return -EINVAL;
 
-    vunmap(kmap->kva);
+    vunmap(kmap->kva, kmap->npages);
     return 0;
 }
 
 int hax_alloc_page_frame(uint8_t flags, hax_memdesc_phys *memdesc)
 {
-    gfp_t gfp_flags;
-
     if (!memdesc)
         return -EINVAL;
-
-    gfp_flags = GFP_KERNEL;
-    if (flags & HAX_PAGE_ALLOC_ZEROED)
-        gfp_flags |= __GFP_ZERO;
 
     // TODO: Support HAX_PAGE_ALLOC_BELOW_4G
     if (flags & HAX_PAGE_ALLOC_BELOW_4G) {
         hax_warning("%s: HAX_PAGE_ALLOC_BELOW_4G is ignored\n", __func__);
     }
 
-    memdesc->ppage = alloc_page(gfp_flags);
-    if (!memdesc->ppage)
-        return -ENOMEM;
+    memdesc->ppage = kmem_zalloc(PAGE_SIZE, KM_SLEEP);
+
+    if (flags & HAX_PAGE_ALLOC_ZEROED)
+        memset(memdesc->ppage, 0, PAGE_SIZE);
+
     return 0;
 }
 
@@ -189,7 +268,7 @@ int hax_free_page_frame(hax_memdesc_phys *memdesc)
     if (!memdesc || !memdesc->ppage)
         return -EINVAL;
 
-    free_page((unsigned long)page_address(memdesc->ppage));
+    kmem_free(memdesc->ppage, PAGE_SIZE);
     return 0;
 }
 
@@ -212,7 +291,7 @@ void * hax_get_kva_phys(hax_memdesc_phys *memdesc)
 void * hax_map_page_frame(uint64_t pfn, hax_kmap_phys *kmap)
 {
     void *kva;
-    struct page *ppage;
+    struct vm_page *ppage;
 
     if (!kmap)
         return NULL;
