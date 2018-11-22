@@ -8,7 +8,7 @@ SRCS+=	hax_entry.c
 SRCS+=	hax_event.c
 SRCS+=	hax_host_mem.c
 SRCS+=	hax_mem_alloc.c
-#SRCS+=	hax_mm.c
+SRCS+=	hax_mm.c
 SRCS+=	hax_wrapper.c
 
 # core
