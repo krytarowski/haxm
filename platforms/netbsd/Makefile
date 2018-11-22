@@ -35,4 +35,17 @@ SRCS+=	vm.c
 SRCS+=	vmx.c
 SRCS+=	vtlb.c
 
+DPSRCS+=	emulate_ops.o
+DPSRCS+=	ia32_ops.o
+DPSRCS+=	vmx_ops.o
+
+emulate_ops.o: emulate_ops.asm
+	nasm -f elf64 -o $@ $<
+
+ia32_ops.o: ia32_ops.asm
+	nasm -f elf64 -o $@ $<
+
+vmx_ops.o: vmx_ops.asm
+	nasm -f elf64 -o $@ $<
+
 .include <bsd.kmodule.mk>
