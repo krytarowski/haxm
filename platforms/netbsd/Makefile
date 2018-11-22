@@ -8,7 +8,7 @@ SRCS+=	hax_entry.c
 SRCS+=	hax_event.c
 SRCS+=	hax_host_mem.c
 SRCS+=	hax_mem_alloc.c
-SRCS+=	hax_mm.c
+#SRCS+=	hax_mm.c
 SRCS+=	hax_wrapper.c
 
 # core
@@ -40,12 +40,12 @@ DPSRCS+=	ia32_ops.o
 DPSRCS+=	vmx_ops.o
 
 emulate_ops.o: emulate_ops.asm
-	nasm -f elf64 -o $@ $<
+	cd ../../core && nasm -f elf64 -o $@ emulate_ops.asm
 
 ia32_ops.o: ia32_ops.asm
-	nasm -f elf64 -o $@ $<
+	cd ../../core && nasm -f elf64 -o $@ ia32_ops.asm
 
 vmx_ops.o: vmx_ops.asm
-	nasm -f elf64 -o $@ $<
+	cd ../../core && nasm -f elf64 -o $@ vmx_ops.asm
 
 .include <bsd.kmodule.mk>
