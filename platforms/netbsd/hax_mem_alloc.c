@@ -28,33 +28,55 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include <sys/param.h>
+#include <sys/types.h>
+#include <sys/kmem.h>
+#include <sys/vmem.h>
+#include <uvm/uvm.h>
+
 #include "../../include/hax.h"
 
 void * hax_vmalloc(uint32_t size, uint32_t flags)
 {
     void *ptr;
-    (void)flags;
+    uvm_flag_t flag;
 
     if (size == 0)
         return NULL;
 
-    // NOTE: Flags ignored. Linux allows only non-pageable memory in kernel.
-    ptr = kzalloc(size, GFP_KERNEL);
+#if 0
+    if (flags & HAX_MEM_PAGABLE)
+        flag = UVM_KMF_PAGEABLE;
+    else if (flags & HAX_MEM_NONPAGE)
+#endif
+        flag = UVM_KMF_WIRED | UVM_KMF_ZERO;
+
+    flag |= UVM_KMF_WAITVA;
+
+    ptr = (void*)uvm_km_alloc(kernel_map, size, PAGE_SIZE, flag);
+
     return ptr;
 }
 
 void hax_vfree_flags(void *va, uint32_t size, uint32_t flags)
 {
-    (void)size;
-    (void)flags;
+    uvm_flag_t flag;
 
-    // NOTE: Flags ignored. Linux allows only non-pageable memory in kernel.
-    kfree(va);
+#if 0
+    if (flags & HAX_MEM_PAGABLE)
+        flag = UVM_KMF_PAGEABLE;
+    else if (flags & HAX_MEM_NONPAGE)
+#endif
+        flag = UVM_KMF_WIRED;
+
+    uvm_km_free(kernel_map, (vaddr_t)va, size, flag);
 }
 
 void hax_vfree(void *va, uint32_t size)
 {
-    hax_vfree_flags(va, size, 0);
+    uint32_t flags = HAX_MEM_NONPAGE;
+
+    hax_vfree_flags(va, size, flags);
 }
 
 void hax_vfree_aligned(void *va, uint32_t size, uint32_t alignment,
@@ -65,44 +87,95 @@ void hax_vfree_aligned(void *va, uint32_t size, uint32_t alignment,
 
 void * hax_vmap(hax_pa_t pa, uint32_t size)
 {
-    return ioremap(pa, size);
+    vmem_addr_t addr;
+    unsigned long va, offset;
+
+    offset = pa & PAGE_MASK;
+    pa = trunc_page(pa);
+    size = round_page(size + offset);
+
+    if (vmem_alloc(kmem_arena, size, VM_BESTFIT | VM_SLEEP, &addr)) {
+        return NULL;
+    }
+
+    pmap_kenter_pa(addr, pa, VM_PROT_READ | VM_PROT_WRITE, PMAP_WIRED);
+    pmap_update(pmap_kernel());
+
+    return (void *)(va + offset);
 }
 
 void hax_vunmap(void *addr, uint32_t size)
 {
-    return iounmap(addr);
+    unsigned long offset;
+    vaddr_t va = (unsigned long)addr;
+
+    offset = va & PAGE_MASK;
+    size = round_page(size + offset);
+    va = trunc_page(va);
+
+    pmap_kremove(va, size);
+    pmap_update(pmap_kernel());
+
+    vmem_free(kmem_arena, va, size);
 }
 
 hax_pa_t hax_pa(void *va)
 {
-    return virt_to_phys(va);
+    bool success;
+    paddr_t pa;
+
+    success = pmap_extract(pmap_kernel(), (vaddr_t)va, &pa);
+
+    KASSERT(success);
+
+    return pa;
 }
 
 struct hax_page * hax_alloc_pages(int order, uint32_t flags, bool vmap)
 {
     struct hax_page *ppage;
-    struct page *page;
-    gfp_t gfp_mask;
+    struct vm_page *page;
+    paddr_t pa;
+    vaddr_t va;
+    size_t size;
+    int rv;
 
-    ppage = kmalloc(sizeof(struct hax_page), GFP_KERNEL);
-    if (!ppage)
-        return NULL;
+    ppage = kmem_zalloc(sizeof(struct hax_page), KM_SLEEP);
 
-    gfp_mask = GFP_KERNEL;
     // TODO: Support HAX_MEM_LOW_4G
     if (flags & HAX_MEM_LOW_4G) {
         hax_warning("%s: HAX_MEM_LOW_4G is ignored\n", __func__);
     }
 
-    page = alloc_pages(GFP_KERNEL, order);
-    if (!page) {
-        kfree(ppage);
+    ppage->pglist = kmem_zalloc(sizeof(struct pglist), KM_SLEEP);
+
+    size = PAGE_SIZE << order;
+
+    rv = uvm_pglistalloc(size, 0, ~0UL, PAGE_SIZE, 0, ppage->pglist, 1, 1);
+    if (rv) {
+        kmem_free(ppage->pglist, sizeof(struct pglist));
+        kmem_free(ppage, sizeof(struct hax_page));
         return NULL;
     }
 
-    ppage->page = page;
-    ppage->pa = page_to_phys(page);
-    ppage->kva = page_address(page);
+    va = uvm_km_alloc(kernel_map, size, PAGE_SIZE, UVM_KMF_VAONLY);
+    if (va == 0) {
+        uvm_pglistfree(ppage->pglist);
+        kmem_free(ppage->pglist, sizeof(struct pglist));
+        kmem_free(ppage, sizeof(struct hax_page));
+        return NULL;
+    }
+
+    TAILQ_FOREACH(page, ppage->pglist, pageq.queue) {
+        pa = VM_PAGE_TO_PHYS(page);
+        pmap_kenter_pa(va, pa, VM_PROT_READ | VM_PROT_WRITE, PMAP_WRITE_BACK);
+        va += PAGE_SIZE;
+    }
+    pmap_update(pmap_kernel());
+
+    ppage->page = TAILQ_FIRST(ppage->pglist);
+    ppage->pa = VM_PAGE_TO_PHYS(ppage->page);
+    ppage->kva = (void *)va;
     ppage->flags = flags;
     ppage->order = order;
     return ppage;
@@ -110,10 +183,19 @@ struct hax_page * hax_alloc_pages(int order, uint32_t flags, bool vmap)
 
 void hax_free_pages(struct hax_page *pages)
 {
+    size_t size;
+
     if (!pages)
         return;
 
-    free_pages((unsigned long)pages->kva, pages->order);
+    size = PAGE_SIZE << pages->order;
+
+    pmap_kremove((vaddr_t)pages->kva, size);
+    pmap_update(pmap_kernel());
+    uvm_km_free(kernel_map, (vaddr_t)pages->kva, size, UVM_KMF_VAONLY);
+    uvm_pglistfree(pages->pglist);
+    kmem_free(pages->pglist, sizeof(struct pglist));
+    kmem_free(pages, sizeof(struct hax_page));
 }
 
 void * hax_map_page(struct hax_page *page)

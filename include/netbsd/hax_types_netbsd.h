@@ -63,6 +63,7 @@ typedef mword HAX_VADDR_T;
 struct hax_page {
     void *kva;
     struct vm_page *page;
+    struct pglist *pglist;
     uint64_t pa;
     uint32_t order;
     uint32_t flags;
