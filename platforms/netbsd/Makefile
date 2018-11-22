@@ -35,17 +35,13 @@ SRCS+=	vm.c
 SRCS+=	vmx.c
 SRCS+=	vtlb.c
 
-DPSRCS+=	emulate_ops.o
-DPSRCS+=	ia32_ops.o
-DPSRCS+=	vmx_ops.o
+.SUFFIXES: .asm .o
+.PATH.asm: ../../core
+.asm.o:
+	nasm -f elf64 -o ${.TARGET} ${.IMPSRC}
 
-emulate_ops.o: emulate_ops.asm
-	cd ../../core && nasm -f elf64 -o $@ emulate_ops.asm
-
-ia32_ops.o: ia32_ops.asm
-	cd ../../core && nasm -f elf64 -o $@ ia32_ops.asm
-
-vmx_ops.o: vmx_ops.asm
-	cd ../../core && nasm -f elf64 -o $@ vmx_ops.asm
+SRCS+=	emulate_ops.asm
+SRCS+=	ia32_ops.asm
+SRCS+=	vmx_ops.asm
 
 .include <bsd.kmodule.mk>
