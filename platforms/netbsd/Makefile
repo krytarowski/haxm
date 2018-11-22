@@ -35,10 +35,16 @@ SRCS+=	vm.c
 SRCS+=	vmx.c
 SRCS+=	vtlb.c
 
+.if ${MACHINE} == "amd64"
+TARGET_ELF=	elf64
+.else
+.error Not supported
+.endif
+
 .SUFFIXES: .asm .o
 .PATH.asm: ../../core
 .asm.o:
-	nasm -f elf64 -o ${.TARGET} ${.IMPSRC}
+	nasm -f ${TARGET_ELF} -o ${.TARGET} ${.IMPSRC}
 
 SRCS+=	emulate_ops.asm
 SRCS+=	ia32_ops.asm
