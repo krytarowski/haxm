@@ -47,7 +47,7 @@ static int hax_cmajor = 220, hax_bmajor = -1;
 
 dev_type_open(hax_dev_open);
 dev_type_close(hax_dev_close);
-static dev_type_ioctl(hax_dev_ioctl);
+dev_type_ioctl(hax_dev_ioctl);
 
 static struct cdevsw hax_dev_cdevsw = {
     .d_open = hax_dev_open,
@@ -64,21 +64,21 @@ static struct cdevsw hax_dev_cdevsw = {
     .d_flag = D_OTHER
 };
 
-static int hax_open(dev_t dev __unused, int flags __unused, int mode __unused,
+int hax_dev_open(dev_t dev __unused, int flags __unused, int mode __unused,
                     struct lwp *l __unused)
 {
     hax_log_level(HAX_LOGI, "HAX module opened\n");
     return 0;
 }
 
-static int hax_close(dev_t self __unused, int flag __unused, int mode __unused,
+int hax_dev_close(dev_t self __unused, int flag __unused, int mode __unused,
                      struct lwp *l __unused)
 {
     hax_log_level(HAX_LOGI, "hax_close\n");
     return 0;
 }
 
-static int hax_dev_ioctl(dev_t self __unused, u_long cmd, void *data, int flag,
+int hax_dev_ioctl(dev_t self __unused, u_long cmd, void *data, int flag,
                          struct lwp *l)
 {
     int ret = 0;
