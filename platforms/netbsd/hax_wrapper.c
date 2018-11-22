@@ -30,7 +30,11 @@
 
 #include <sys/param.h>
 #include <sys/types.h>
+#include <sys/atomic.h>
+#include <sys/mutex.h>
 #include <sys/systm.h>
+#include <sys/xcall.h>
+#include <sys/kmem.h>
 #include <machine/cpu.h>
 #include <machine/cpufunc.h>
 
@@ -66,9 +70,9 @@ typedef struct smp_call_parameter {
     hax_cpumap_t *cpus;
 } smp_call_parameter;
 
-static void smp_cfunction(void *p)
+static void smp_cfunction(void *a1, void *a2 __unused)
 {
-    struct smp_call_parameter *info = p;
+    struct smp_call_parameter *info = a1;
     hax_cpumap_t *cpus;
     uint32_t cpuid;
 
@@ -82,11 +86,13 @@ int hax_smp_call_function(hax_cpumap_t *cpus, void (*scfunc)(void *),
                           void *param)
 {
     smp_call_parameter info;
+    uint64_t xc;
 
     info.func = scfunc;
     info.param = param;
     info.cpus = cpus;
-    on_each_cpu(smp_cfunction, &info, 1);
+    xc = xc_broadcast(XC_HIGHPRI, smp_cfunction, &info, NULL);
+    xc_wait(xc);
     return 0;
 }
 
@@ -98,12 +104,12 @@ int proc_event_pending(struct vcpu_t *vcpu)
 
 void hax_disable_preemption(preempt_flag *eflags)
 {
-    preempt_disable();
+    kpreempt_disable();
 }
 
 void hax_enable_preemption(preempt_flag *eflags)
 {
-    preempt_enable();
+    kpreempt_enable();
 }
 
 void hax_enable_irq(void)
@@ -118,159 +124,131 @@ void hax_disable_irq(void)
 
 void hax_error(char *fmt, ...)
 {
-    struct va_format vaf;
     va_list args;
+    va_start(args, fmt);
 
     if (HAX_LOGE < default_hax_log_level)
         return;
 
-    vaf.fmt = fmt;
-    vaf.va = &args;
-    va_start(args, fmt);
-    printk("%shaxm_error: %pV", KERN_ERR, &vaf);
+    printf("haxm_error: ");
+    printf(fmt, args);
     va_end(args);
 }
 
 void hax_warning(char *fmt, ...)
 {
-    struct va_format vaf;
     va_list args;
+    va_start(args, fmt);
 
     if (HAX_LOGW < default_hax_log_level)
         return;
 
-    vaf.fmt = fmt;
-    vaf.va = &args;
-    va_start(args, fmt);
-    printk("%shaxm_warning: %pV", KERN_WARNING, &vaf);
+    printf("haxm_warning: ");
+    printf(fmt, args);
     va_end(args);
 }
 
 void hax_info(char *fmt, ...)
 {
-    struct va_format vaf;
     va_list args;
+    va_start(args, fmt);
 
     if (HAX_LOGI < default_hax_log_level)
         return;
 
-    vaf.fmt = fmt;
-    vaf.va = &args;
-    va_start(args, fmt);
-    printk("%shaxm_info: %pV", KERN_INFO, &vaf);
+    printf("haxm_info: ");
+    printf(fmt, args);
     va_end(args);
 }
 
 void hax_debug(char *fmt, ...)
 {
-    struct va_format vaf;
     va_list args;
+    va_start(args, fmt);
 
     if (HAX_LOGD < default_hax_log_level)
         return;
 
-    vaf.fmt = fmt;
-    vaf.va = &args;
-    va_start(args, fmt);
-    printk("%shaxm_debug: %pV", KERN_DEBUG, &vaf);
+    printf("haxm_debug: ");
+    printf(fmt, args);
     va_end(args);
 }
 
 void hax_panic_vcpu(struct vcpu_t *v, char *fmt, ...)
 {
-    struct va_format vaf;
     va_list args;
-
-    vaf.fmt = fmt;
-    vaf.va = &args;
     va_start(args, fmt);
-    printk("%shaxm_panic: %pV", KERN_ERR, &vaf);
-    va_end(args);
-    vcpu_set_panic(v);
-}
 
-void assert(bool condition)
-{
-    if (!condition)
-        BUG();
+    printf("haxm_panic: ");
+    printf(fmt, args);
+    va_end(args);
+
+    vcpu_set_panic(v);
 }
 
 /* Misc */
 void hax_smp_mb(void)
 {
-    smp_mb();
+    membar_sync();
 }
 
 /* Compare-Exchange */
 bool hax_cmpxchg32(uint32_t old_val, uint32_t new_val, volatile uint32_t *addr)
 {
-    uint64_t ret;
-
-    ret = cmpxchg(addr, old_val, new_val);
-    if (ret == old_val)
-        return true;
-    else
-        return false;
+    return atomic_cas_32(addr, old_val, new_val) == old_val;
 }
 
 bool hax_cmpxchg64(uint64_t old_val, uint64_t new_val, volatile uint64_t *addr)
 {
-    uint64_t ret;
-
-    ret = cmpxchg64(addr, old_val, new_val);
-    if (ret == old_val)
-        return true;
-    else
-        return false;
+    return atomic_cas_64(addr, old_val, new_val) == old_val;
 }
 
 /* Atomics */
 hax_atomic_t hax_atomic_add(volatile hax_atomic_t *atom, uint32_t value)
 {
-    return atomic_add_return(value, (atomic_t *)atom) - value;
+    return atomic_add_32_nv(atom, value) - value;
 }
 
 hax_atomic_t hax_atomic_inc(volatile hax_atomic_t *atom)
 {
-    return atomic_inc_return((atomic_t *)atom) - 1;
+    return atomic_inc_32_nv(atom) - 1;
 }
 
 hax_atomic_t hax_atomic_dec(volatile hax_atomic_t *atom)
 {
-    return atomic_dec_return((atomic_t *)atom) + 1;
+    return atomic_dec_32_nv(atom) + 1;
 }
 
 int hax_test_and_set_bit(int bit, uint64_t *memory)
 {
-    unsigned long *addr;
-
-    addr = (unsigned long *)memory;
-    return test_and_set_bit(bit, addr);
+    uint64_t bits = __BIT(bit);
+    uint64_t old = *memory;
+    return atomic_or_64_nv(memory, bits) != old;
 }
 
 int hax_test_and_clear_bit(int bit, uint64_t *memory)
 {
-    unsigned long *addr;
-
-    addr = (unsigned long *)memory;
-    return !test_and_clear_bit(bit, addr);
+    uint64_t bits = ~(__BIT(bit));
+    uint64_t old = *memory;
+    return atomic_and_64_nv(memory, bits) != old;
 }
 
 /* Spinlock */
 struct hax_spinlock {
-    spinlock_t lock;
+    kmutex_t lock;
 };
 
 hax_spinlock *hax_spinlock_alloc_init(void)
 {
     struct hax_spinlock *lock;
 
-    lock = kmalloc(sizeof(struct hax_spinlock), GFP_KERNEL);
+    lock = kmem_alloc(sizeof(struct hax_spinlock), KM_SLEEP);
     if (!lock) {
         hax_error("Could not allocate spinlock\n");
         return NULL;
     }
-    spin_lock_init(&lock->lock);
+    mutex_init(&lock->lock, MUTEX_DEFAULT, IPL_VM);
+
     return lock;
 }
 
@@ -279,30 +257,31 @@ void hax_spinlock_free(hax_spinlock *lock)
     if (!lock)
         return;
 
-    kfree(lock);
+    mutex_destroy(&lock->lock);
+    kmem_free(lock, sizeof(struct hax_spinlock));
 }
 
 void hax_spin_lock(hax_spinlock *lock)
 {
-    spin_lock(&lock->lock);
+    mutex_spin_enter(&lock->lock);
 }
 
 void hax_spin_unlock(hax_spinlock *lock)
 {
-    spin_unlock(&lock->lock);
+    mutex_spin_exit(&lock->lock);
 }
 
 /* Mutex */
 hax_mutex hax_mutex_alloc_init(void)
 {
-    struct mutex *lock;
+    kmutex_t *lock;
 
-    lock = kmalloc(sizeof(struct mutex), GFP_KERNEL);
+    lock = kmem_alloc(sizeof(kmutex_t), KM_SLEEP);
     if (!lock) {
         hax_error("Could not allocate mutex\n");
         return NULL;
     }
-    mutex_init(lock);
+    mutex_init(lock, MUTEX_DEFAULT, IPL_NONE);
     return lock;
 }
 
@@ -311,7 +290,7 @@ void hax_mutex_lock(hax_mutex lock)
     if (!lock)
         return;
 
-    mutex_lock((struct mutex *)lock);
+    mutex_enter(lock);
 }
 
 void hax_mutex_unlock(hax_mutex lock)
@@ -319,7 +298,7 @@ void hax_mutex_unlock(hax_mutex lock)
     if (!lock)
         return;
 
-    mutex_unlock((struct mutex *)lock);
+    mutex_exit(lock);
 }
 
 void hax_mutex_free(hax_mutex lock)
@@ -327,6 +306,6 @@ void hax_mutex_free(hax_mutex lock)
     if (!lock)
         return;
 
-    mutex_destroy((struct mutex *)lock);
-    kfree(lock);
+    mutex_destroy(lock);
+    kmem_free(lock, sizeof(kmutex_t));
 }

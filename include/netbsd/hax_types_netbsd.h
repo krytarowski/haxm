@@ -103,7 +103,7 @@ static inline hax_cpumap_t cpu2cpumap(int cpu)
 #define is_leaf(x)  1
 
 typedef mword preempt_flag;
-typedef void *hax_mutex;
+typedef kmutex_t *hax_mutex;
 typedef uint32_t hax_atomic_t;
 
 /* Return the value before add */
