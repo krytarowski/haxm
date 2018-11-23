@@ -35,28 +35,38 @@
 
 #include "../../include/hax.h"
 
-typedef struct hax_vcpu_mem_hinfo_t {
+struct hax_vcpu_mem_hinfo_t {
     int flags;
-    int nr_pages;
-    struct pglist *pglist;
-} hax_vcpu_mem_hinfo_t;
+};
 
 int hax_clear_vcpumem(struct hax_vcpu_mem *mem)
 {
     struct hax_vcpu_mem_hinfo_t *hinfo;
+    struct vm_map *map;
+    vaddr_t uva, kva;
+    vsize_t size;
 
     if (!mem)
         return -EINVAL;
 
     hinfo = mem->hinfo;
-    vunmap(mem->kva);
-    release_pages(hinfo->pages, hinfo->nr_pages);
-    if (!(hinfo->flags & HAX_VCPUMEM_VALIDVA)) {
-        // TODO: This caused a kernel panic, now it just leaks memory.
-        //vm_munmap(mem->uva, mem->size);
+
+    uva = mem->uva;
+    kva = (vaddr_t)mem->kva;
+    size = mem->size;
+
+    pmap_kremove(kva, size);
+    pmap_update(pmap_kernel());
+
+    if (!ISSET(hinfo->flags, HAX_VCPUMEM_VALIDVA)) {
+        map = &curproc->p_vmspace->vm_map;
+        uvm_unmap(map, uva, size);
     }
-    kfree(hinfo->pages);
-    kfree(hinfo);
+
+    uvm_km_free(kernel_map, kva, size, UVM_KMF_VAONLY);
+
+    kmem_free(hinfo, sizeof(struct hax_vcpu_mem_hinfo_t));
+
     return 0;
 }
 
@@ -64,48 +74,59 @@ int hax_setup_vcpumem(struct hax_vcpu_mem *mem, uint64_t uva, uint32_t size,
                       int flags)
 {
     int err = 0;
-    int nr_pages;
-    int nr_pages_map;
-    struct pglist *pglist = NULL;
     struct hax_vcpu_mem_hinfo_t *hinfo = NULL;
-    void *kva;
+    vaddr_t kva;
+    struct vm_map *map;
+    vaddr_t va, end_va;
+    paddr_t pa;
+    unsigned offset;
 
     if (!mem || !size)
         return -EINVAL;
 
+    offset = uva & PAGE_MASK;
+    size = round_page(size + offset);
+    uva = trunc_page(uva);
+
     hinfo = kmem_alloc(sizeof(struct hax_vcpu_mem_hinfo_t), KM_SLEEP);
 
-    nr_pages = ((size - 1) / PAGE_SIZE) + 1;
-    pglist = kmem_alloc(sizeof(struct page *) * nr_pages, KM_SLEEP);
+    map = &curproc->p_vmspace->vm_map;
 
-    if (!(flags & HAX_VCPUMEM_VALIDVA)) {
-        uva = vm_mmap(NULL, 0, size, PROT_READ | PROT_WRITE,
-                      MAP_ANONYMOUS | MAP_PRIVATE, 0);
-        if (!uva) {
+    if (!ISSET(flags, HAX_VCPUMEM_VALIDVA)) {
+        // Map to user
+        err = uvm_map(map, &va, size, NULL, 0, 0,
+                      UVM_MAPFLAG(UVM_PROT_RW, UVM_PROT_RW, UVM_INH_NONE,
+                                  UVM_ADV_RANDOM, 0));
+
+        if (err) {
+            hax_error("Failed to map into user\n");
             err = -ENOMEM;
             goto fail;
         }
+        uva = va;
     }
-    nr_pages_map = get_user_pages_fast(uva, nr_pages, 1, pages);
-    if (nr_pages_map < 0) {
-        err = -EFAULT;
-        goto fail;
+
+    kva = uvm_km_alloc(kernel_map, size, PAGE_SIZE,
+                       UVM_KMF_VAONLY|UVM_KMF_WAITVA);
+
+    for (va = uva, end_va = uva + size; va < end_va; va += PAGE_SIZE, kva += PAGE_SIZE) {
+        if (!pmap_extract(map->pmap, va, &pa))
+            break;
+        pmap_kenter_pa(kva, pa, VM_PROT_READ | VM_PROT_WRITE, PMAP_WIRED);
     }
-    kva = vmap(pages, nr_pages_map, VM_MAP, PAGE_KERNEL);
+
+    pmap_update(pmap_kernel());
 
     hinfo->flags = flags;
-    hinfo->pages = pages;
-    hinfo->nr_pages = nr_pages_map;
 
     mem->uva = uva;
-    mem->kva = kva;
+    mem->kva = (void *)kva;
     mem->hinfo = hinfo;
     mem->size = size;
     return 0;
 
 fail:
-    kfree(pages);
-    kfree(hinfo);
+    kmem_free(hinfo, sizeof(struct hax_vcpu_mem_hinfo_t));
     return err;
 }
 
