@@ -137,7 +137,7 @@ struct hax_page * hax_alloc_pages(int order, uint32_t flags, bool vmap)
     struct hax_page *ppage;
     struct vm_page *page;
     paddr_t pa;
-    vaddr_t va;
+    vaddr_t kva, va;
     size_t size;
     int rv;
 
@@ -159,14 +159,15 @@ struct hax_page * hax_alloc_pages(int order, uint32_t flags, bool vmap)
         return NULL;
     }
 
-    va = uvm_km_alloc(kernel_map, size, PAGE_SIZE, UVM_KMF_VAONLY);
-    if (va == 0) {
+    kva = uvm_km_alloc(kernel_map, size, PAGE_SIZE, UVM_KMF_VAONLY);
+    if (kva == 0) {
         uvm_pglistfree(ppage->pglist);
         kmem_free(ppage->pglist, sizeof(struct pglist));
         kmem_free(ppage, sizeof(struct hax_page));
         return NULL;
     }
 
+    va = kva;
     TAILQ_FOREACH(page, ppage->pglist, pageq.queue) {
         pa = VM_PAGE_TO_PHYS(page);
         pmap_kenter_pa(va, pa, VM_PROT_READ | VM_PROT_WRITE, PMAP_WRITE_BACK);
@@ -176,7 +177,7 @@ struct hax_page * hax_alloc_pages(int order, uint32_t flags, bool vmap)
 
     ppage->page = TAILQ_FIRST(ppage->pglist);
     ppage->pa = VM_PAGE_TO_PHYS(ppage->page);
-    ppage->kva = (void *)va;
+    ppage->kva = (void *)kva;
     ppage->flags = flags;
     ppage->order = order;
     return ppage;
