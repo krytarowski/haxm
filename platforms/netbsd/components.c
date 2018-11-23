@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018 Kryptos Logic
+ * Copyright (c) 2018 Kamil Rytarowski
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -44,7 +44,6 @@ static int hax_vm_cmajor = 222, hax_vm_bmajor = -1;
 
 #define HAX_VM_DEVFS_FMT    "hax_vm/vm%02d"
 #define HAX_VCPU_DEVFS_FMT  "hax_vm%02d/vcpu%02d"
-
 
 typedef struct hax_vm_netbsd_t {
     struct vm_t *cvm;
