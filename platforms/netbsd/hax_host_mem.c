@@ -185,29 +185,55 @@ int hax_pin_user_pages(uint64_t start_uva, uint64_t size, hax_memdesc_user *memd
         CLR(page->flags, PG_CLEAN);
     }
 
+    memdesc->uva = uva;
     memdesc->size = size;
     return 0;
 }
 
 int hax_unpin_user_pages(hax_memdesc_user *memdesc)
 {
+    struct vm_page *page;
+    vsize_t size;
+    vaddr_t uva, va, end_va;
+
     if (!memdesc)
         return -EINVAL;
-    if (!memdesc->pages)
+    if (!memdesc->size)
         return -EINVAL;
-    if (memdesc->nr_pages_pinned == 0)
+    if (!memdesc->uva)
         return -EINVAL;
-    
-    release_pages(memdesc->pages, memdesc->nr_pages_pinned);
+
+    size = memdesc->size;
+    uva = memdesc->uva;
+
+    for (va = uva, end_va = uva + size; va < end_va; va += PAGE_SIZE) {
+        if (!pmap_extract(map->pmap, va, &pa))
+            break;
+        page = PHYS_TO_VM_PAGE(pa);
+        mutex_enter(&uvm_pageqlock);
+        uvm_pageunwire(page);
+        mutex_exit(&uvm_pageqlock);
+    }
+
     return 0;
 }
 
 uint64_t hax_get_pfn_user(hax_memdesc_user *memdesc, uint64_t uva_offset)
 {
-    int page_idx;
+    vsize_t size;
+    vaddr_t uva;
 
-    page_idx = uva_offset / PAGE_SIZE;
-    if (page_idx >= memdesc->nr_pages)
+    if (!memdesc)
+        return -EINVAL;
+    if (!memdesc->size)
+        return -EINVAL;
+    if (!memdesc->uva)
+        return -EINVAL;
+
+    size = memdesc->size;
+    uva = memdesc->uva;
+
+    if (uva_offset > size)
         return -EINVAL;
 
     return page_to_pfn(memdesc->pages[page_idx]);
