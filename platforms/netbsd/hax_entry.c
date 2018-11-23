@@ -35,6 +35,8 @@
 #include <sys/lwp.h>
 #include <sys/proc.h>
 #include <sys/module.h>
+#include <machine/specialreg.h>
+#include <machine/cpufunc.h>
 
 #include "../../include/hax.h"
 #include "../../include/hax_interface.h"
@@ -132,6 +134,7 @@ static int hax_driver_init(void)
     CPU_INFO_ITERATOR cii;
     struct schedstate_percpu *spc;
     int i, err;
+    vaddr_t cr4;
 
     // Initialization
     max_cpus = 0;
@@ -144,6 +147,10 @@ static int hax_driver_init(void)
             cpu_online_map |= __BIT(ci->ci_cpuid);
         }
     }
+
+    cr4 = rcr4();
+    cr4 |= CR4_VMXE;
+    lcr4(cr4);
 
     if (hax_module_init() < 0) {
         hax_error("Failed to initialize HAXM module\n");
