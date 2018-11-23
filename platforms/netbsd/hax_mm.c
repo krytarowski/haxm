@@ -36,6 +36,7 @@
 #include "../../include/hax.h"
 
 struct hax_vcpu_mem_hinfo_t {
+    struct uvm_object *uao;
     int flags;
 };
 
@@ -61,6 +62,7 @@ int hax_clear_vcpumem(struct hax_vcpu_mem *mem)
     if (!ISSET(hinfo->flags, HAX_VCPUMEM_VALIDVA)) {
         map = &curproc->p_vmspace->vm_map;
         uvm_unmap(map, uva, size);
+        uao_deatach(hinfo->uao);
     }
 
     uvm_km_free(kernel_map, kva, size, UVM_KMF_VAONLY);
@@ -73,10 +75,12 @@ int hax_clear_vcpumem(struct hax_vcpu_mem *mem)
 int hax_setup_vcpumem(struct hax_vcpu_mem *mem, uint64_t uva, uint32_t size,
                       int flags)
 {
+    struct proc *p;
+    struct uvm_object *uao;
+    struct vm_map *map;
     int err = 0;
     struct hax_vcpu_mem_hinfo_t *hinfo = NULL;
     vaddr_t kva;
-    struct vm_map *map;
     vaddr_t va, end_va;
     paddr_t pa;
     unsigned offset;
@@ -88,21 +92,26 @@ int hax_setup_vcpumem(struct hax_vcpu_mem *mem, uint64_t uva, uint32_t size,
     size = round_page(size + offset);
     uva = trunc_page(uva);
 
-    hinfo = kmem_alloc(sizeof(struct hax_vcpu_mem_hinfo_t), KM_SLEEP);
+    hinfo = kmem_zalloc(sizeof(struct hax_vcpu_mem_hinfo_t), KM_SLEEP);
+    hinfo->flags = flags;
 
-    map = &curproc->p_vmspace->vm_map;
+    p = curproc;
+    map = p->p_vmspace->vm_map;
 
     if (!ISSET(flags, HAX_VCPUMEM_VALIDVA)) {
         // Map to user
-        err = uvm_map(map, &va, size, NULL, 0, 0,
+        uao = uao_create(size, 0);
+        va = p->p_emul->e_vm_default_addr(p, (vaddr_t)p->p_vmspace->vm_daddr, size, map.vm_map.flags & VM_MAP_TOPDOWN);
+        err = uvm_map(map, &va, size, uao, 0, 0,
                       UVM_MAPFLAG(UVM_PROT_RW, UVM_PROT_RW, UVM_INH_NONE,
                                   UVM_ADV_RANDOM, 0));
-
         if (err) {
             hax_error("Failed to map into user\n");
-            err = -ENOMEM;
-            goto fail;
+            uao_detach(uao);
+            kmem_free(hinfo, sizeof(struct hax_vcpu_mem_hinfo_t));
+            return -ENOMEM;
         }
+        hinfo->uao = uao;
         uva = va;
     }
 
@@ -117,17 +126,11 @@ int hax_setup_vcpumem(struct hax_vcpu_mem *mem, uint64_t uva, uint32_t size,
 
     pmap_update(pmap_kernel());
 
-    hinfo->flags = flags;
-
     mem->uva = uva;
     mem->kva = (void *)kva;
     mem->hinfo = hinfo;
     mem->size = size;
     return 0;
-
-fail:
-    kmem_free(hinfo, sizeof(struct hax_vcpu_mem_hinfo_t));
-    return err;
 }
 
 uint64_t hax_get_memory_threshold(void)
