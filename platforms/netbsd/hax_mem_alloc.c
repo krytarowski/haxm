@@ -87,36 +87,37 @@ void hax_vfree_aligned(void *va, uint32_t size, uint32_t alignment,
 
 void * hax_vmap(hax_pa_t pa, uint32_t size)
 {
-    vmem_addr_t addr;
-    unsigned long va, offset;
+    vaddr_t kva;
+    vaddr_t va, end_va;
+    unsigned long offset;
 
     offset = pa & PAGE_MASK;
     pa = trunc_page(pa);
     size = round_page(size + offset);
 
-    if (vmem_alloc(kmem_arena, size, VM_BESTFIT | VM_SLEEP, &addr)) {
-        return NULL;
-    }
+    kva = uvm_km_alloc(kernel_map, size, PAGE_SIZE, UVM_KMF_VAONLY|UVM_KMF_WAITVA);
 
-    pmap_kenter_pa(addr, pa, VM_PROT_READ | VM_PROT_WRITE, PMAP_WIRED);
+    for (va = kva, end_va = kva + size; va < end_va; va += PAGE_SIZE, pa += PAGE_SIZE) {
+        pmap_kenter_pa(kva, pa, VM_PROT_READ | VM_PROT_WRITE, PMAP_WIRED);
+    }
     pmap_update(pmap_kernel());
 
-    return (void *)(va + offset);
+    return (void *)(kva + offset);
 }
 
 void hax_vunmap(void *addr, uint32_t size)
 {
     unsigned long offset;
-    vaddr_t va = (unsigned long)addr;
+    vaddr_t kva = (vaddr_t)addr;
 
-    offset = va & PAGE_MASK;
+    offset = kva & PAGE_MASK;
     size = round_page(size + offset);
-    va = trunc_page(va);
+    kva = trunc_page(kva);
 
-    pmap_kremove(va, size);
+    pmap_kremove(kva, size);
     pmap_update(pmap_kernel());
 
-    vmem_free(kmem_arena, va, size);
+    uvm_km_alloc(kernel_map, kva, size, UVM_KMF_VAONLY);
 }
 
 hax_pa_t hax_pa(void *va)
