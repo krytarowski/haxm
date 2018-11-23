@@ -82,11 +82,11 @@ typedef struct hax_kmap_user {
 } hax_kmap_user;
 
 typedef struct hax_memdesc_phys {
-    struct vm_page *ppage;
+    struct vm_page *page;
 } hax_memdesc_phys;
 
 typedef struct hax_kmap_phys {
-    void *kva;
+    vaddr_t kva;
 } hax_kmap_phys;
 
 typedef struct hax_spinlock hax_spinlock;

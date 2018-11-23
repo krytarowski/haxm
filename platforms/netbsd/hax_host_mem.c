@@ -39,68 +39,6 @@
 #include "../../include/hax_host_mem.h"
 #include "../../core/include/paging.h"
 
-size_t
-get_user_pages(uint64_t start_uva, size_t nr_pages, struct vm_page **pages)
-{
-    struct vm_map *map;
-    paddr_t pa;
-    uint64_t va, end_uva;
-    size_t i;
-
-    map = &curproc->p_vmspace->vm_map;
-
-    end_uva = start_uva + (nr_pages << PAGE_SHIFT);
-    if (start_uva < vm_map_min(map) || end_uva > vm_map_max(map))
-        return 0;
-    i = 0;
-    for (va = start_uva; va < end_uva; va += PAGE_SIZE) {
-        if (!pmap_extract(map->pmap, va, &pa))
-            break;
-        pages[i] = PHYS_TO_VM_PAGE(pa);
-        mutex_enter(&uvm_pageqlock);
-        uvm_pagewire(pages[i]);
-        mutex_exit(&uvm_pageqlock);
-        CLR(pages[i]->flags, PG_CLEAN);
-        ++i;
-    }
-    return i;
-}
-
-void
-release_pages(struct vm_page **pages, size_t nr_pages)
-{
-    size_t i;
-
-    for(i = 0; i < nr_pages; i++) {
-        mutex_enter(&uvm_pageqlock);
-        uvm_pagewire(pages[i]);
-        mutex_exit(&uvm_pageqlock);
-    }
-}
-
-#define PAGE_KERNEL     UVM_PROT_RW
-#define VM_MAP 0
-
-typedef unsigned pgprot_t;
-
-static inline uint64_t
-page_to_phys(struct vm_page *page)
-{
-        return VM_PAGE_TO_PHYS(page);
-}
-
-static inline unsigned long
-page_to_pfn(struct vm_page *page)
-{
-        return (page_to_phys(page) >> PAGE_SHIFT);
-}
-
-static inline struct vm_page *
-pfn_to_page(unsigned long pfn)
-{
-        return (PHYS_TO_VM_PAGE((pfn) << PAGE_SHIFT));
-}
-
 static inline void *
 page_address(struct vm_page *page)
 {
@@ -316,49 +254,61 @@ int hax_alloc_page_frame(uint8_t flags, hax_memdesc_phys *memdesc)
         hax_warning("%s: HAX_PAGE_ALLOC_BELOW_4G is ignored\n", __func__);
     }
 
-    memdesc->ppage = kmem_zalloc(PAGE_SIZE, KM_SLEEP);
-
-    if (flags & HAX_PAGE_ALLOC_ZEROED)
-        memset(memdesc->ppage, 0, PAGE_SIZE);
+    memdesc->page = uvm_pagealloc(NULL, 0, NULL, ISSET(flags, HAX_PAGE_ALLOC_ZEROED) ? UVM_PGA_ZERO : 0);
 
     return 0;
 }
 
 int hax_free_page_frame(hax_memdesc_phys *memdesc)
 {
-    if (!memdesc || !memdesc->ppage)
+    if (!memdesc)
+        return -EINVAL;
+    if (!memdesc->page)
         return -EINVAL;
 
-    kmem_free(memdesc->ppage, PAGE_SIZE);
+    uvm_pagefree(memdesc->page);
+
+    memdesc->page = NULL;
+
     return 0;
 }
 
 uint64_t hax_get_pfn_phys(hax_memdesc_phys *memdesc)
 {
-    if (!memdesc || !memdesc->ppage)
+    if (!memdesc)
+        return INVALID_PFN;
+    if (!memdesc->page)
         return INVALID_PFN;
 
-    return page_to_pfn(memdesc->ppage);
+    return VM_PAGE_TO_PHYS(memdesc->page) >> PAGE_SHIFT;
 }
 
 void * hax_get_kva_phys(hax_memdesc_phys *memdesc)
 {
-    if (!memdesc || !memdesc->ppage)
+    if (!memdesc)
+        return NULL;
+    if (!memdesc->ppage)
         return NULL;
 
-    return page_address(memdesc->ppage);
+    return (void *)(PMAP_MAP_POOLPAGE(VM_PAGE_TO_PHYS(memdesc->page)));
 }
 
 void * hax_map_page_frame(uint64_t pfn, hax_kmap_phys *kmap)
 {
-    void *kva;
+    vaddr_t kva;
+    paddr_t pa;
     struct vm_page *ppage;
 
     if (!kmap)
         return NULL;
 
-    ppage = pfn_to_page(pfn);
-    kva = vmap(&ppage, 1, VM_MAP, PAGE_KERNEL);
+    kva = uvm_km_alloc(kernel_map, PAGE_SIZE, PAGE_SIZE, UVM_KMF_VAONLY|UVM_KMF_WAITVA);
+
+    pa = pfn << PAGE_SHIFT;
+
+    pmap_kenter_pa(kva, pa,  VM_PROT_READ | VM_PROT_WRITE, PMAP_WIRED);
+    pmap_update(pmap_kernel());
+
     kmap->kva = kva;
     return kva;
 }
@@ -367,7 +317,13 @@ int hax_unmap_page_frame(hax_kmap_phys *kmap)
 {
     if (!kmap)
         return -EINVAL;
+    if (!kmap->kva)
+        return -EINVAL;
 
-    vfree(kmap->kva);
+    pmap_kremove(kmap->kva, PAGE_SIZE);
+    pmap_update(pmap_kernel());
+
+    uvm_km_free(kernel_map, kmap->kva, PAGE_SIZE, UVM_KMF_VAONLY);
+
     return 0;
 }
