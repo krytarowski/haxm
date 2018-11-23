@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018 Kryptos Logic
+ * Copyright (c) 2018 Kamil Rytarowski
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
