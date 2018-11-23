@@ -182,7 +182,7 @@ int hax_pin_user_pages(uint64_t start_uva, uint64_t size, hax_memdesc_user *memd
         mutex_enter(&uvm_pageqlock);
         uvm_pagewire(page);
         mutex_exit(&uvm_pageqlock);
-        CLR(page->flags, PG_CLEAN);
+        SET(page->flags, PG_CLEAN);
     }
 
     memdesc->uva = uva;
@@ -220,8 +220,10 @@ int hax_unpin_user_pages(hax_memdesc_user *memdesc)
 
 uint64_t hax_get_pfn_user(hax_memdesc_user *memdesc, uint64_t uva_offset)
 {
+    struct vm_map *map;
     vsize_t size;
     vaddr_t uva;
+    paddr_t pa;
 
     if (!memdesc)
         return -EINVAL;
@@ -236,7 +238,12 @@ uint64_t hax_get_pfn_user(hax_memdesc_user *memdesc, uint64_t uva_offset)
     if (uva_offset > size)
         return -EINVAL;
 
-    return page_to_pfn(memdesc->pages[page_idx]);
+    map = &curproc->p_vmspace->vm_map;
+
+    if (!pmap_extract(map->pmap, uva + uva_offset, &pa))
+        return -EINVAL;
+
+    return (pa >> PAGE_SHIFT);
 }
 
 void * hax_map_user_pages(hax_memdesc_user *memdesc, uint64_t uva_offset,
