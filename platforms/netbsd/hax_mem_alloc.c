@@ -38,7 +38,7 @@
 
 void * hax_vmalloc(uint32_t size, uint32_t flags)
 {
-    void *ptr;
+    vaddr_t kva;
     uvm_flag_t flag;
 
     if (size == 0)
@@ -53,9 +53,9 @@ void * hax_vmalloc(uint32_t size, uint32_t flags)
 
     flag |= UVM_KMF_WAITVA;
 
-    ptr = (void*)uvm_km_alloc(kernel_map, size, PAGE_SIZE, flag);
+    kva = uvm_km_alloc(kernel_map, size, PAGE_SIZE, flag);
 
-    return ptr;
+    return (void *)kva;
 }
 
 void hax_vfree_flags(void *va, uint32_t size, uint32_t flags)
