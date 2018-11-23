@@ -96,13 +96,13 @@ int hax_dev_ioctl(dev_t self __unused, u_long cmd, void *data, int flag,
     case HAX_IOCTL_CAPABILITY: {
         struct hax_capabilityinfo *capab;
         capab = (struct hax_capabilityinfo *)data;
-        hax_get_capability(&capab, sizeof(capab), NULL);
+        hax_get_capability(capab, sizeof(*capab), NULL);
         break;
     }
     case HAX_IOCTL_SET_MEMLIMIT: {
         struct hax_set_memlimit *memlimit;
         memlimit = (struct hax_set_memlimit *)data;
-        ret = hax_set_memlimit(&memlimit, sizeof(memlimit), NULL);
+        ret = hax_set_memlimit(memlimit, sizeof(*memlimit), NULL);
         break;
     }
     case HAX_IOCTL_CREATE_VM: {
