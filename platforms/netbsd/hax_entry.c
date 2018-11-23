@@ -176,6 +176,60 @@ static int hax_driver_exit(void)
 
 MODULE(MODULE_CLASS_MISC, hax_driver, NULL);
 
+static const struct cfiattrdata haxbus_iattrdata = {
+        "haxbus", 0, { { NULL, NULL, 0 },}
+};
+
+static const struct cfiattrdata *const hax_vm_attrs[] = {
+        &haxbus_iattrdata, NULL
+};
+
+CFDRIVER_DECL(hax_vm, DV_DULL, hax_vm_attrs);
+extern struct cfattach hax_vm_ca;
+static int hax_vmloc[] = {
+        -1,
+        -1,
+        -1
+};
+
+static struct cfdata hax_vm_cfdata[] = {
+        {
+                .cf_name = "hax_vm",
+                .cf_atname = "hax_vm",
+                .cf_unit = 0,
+                .cf_fstate = FSTATE_STAR,
+                .cf_loc = hax_vmloc,
+                .cf_flags = 0,
+                .cf_pspec = NULL,
+        },
+        { NULL, NULL, 0, FSTATE_NOTFOUND, NULL, 0, NULL }
+};
+
+static const struct cfiattrdata *const hax_vcpu_attrs[] = {
+        &haxbus_iattrdata, NULL
+};
+
+CFDRIVER_DECL(hax_vcpu, DV_DULL, hax_vcpu_attrs);
+extern struct cfattach hax_vcpu_ca;
+static int hax_vcpuloc[] = {
+        -1,
+        -1,
+        -1
+};
+
+static struct cfdata hax_vcpu_cfdata[] = {
+        {
+                .cf_name = "hax_vcpu",
+                .cf_atname = "hax_vcpu",
+                .cf_unit = 0,
+                .cf_fstate = FSTATE_STAR,
+                .cf_loc = hax_vcpuloc,
+                .cf_flags = 0,
+                .cf_pspec = NULL,
+        },
+        { NULL, NULL, 0, FSTATE_NOTFOUND, NULL, 0, NULL }
+};
+
 static int
 hax_driver_modcmd(modcmd_t cmd, void *arg __unused)
 {
