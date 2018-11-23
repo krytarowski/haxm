@@ -62,7 +62,7 @@ int hax_clear_vcpumem(struct hax_vcpu_mem *mem)
     if (!ISSET(hinfo->flags, HAX_VCPUMEM_VALIDVA)) {
         map = &curproc->p_vmspace->vm_map;
         uvm_unmap(map, uva, size);
-        uao_deatach(hinfo->uao);
+        uao_detach(hinfo->uao);
     }
 
     uvm_km_free(kernel_map, kva, size, UVM_KMF_VAONLY);
@@ -96,12 +96,12 @@ int hax_setup_vcpumem(struct hax_vcpu_mem *mem, uint64_t uva, uint32_t size,
     hinfo->flags = flags;
 
     p = curproc;
-    map = p->p_vmspace->vm_map;
+    map = &p->p_vmspace->vm_map;
 
     if (!ISSET(flags, HAX_VCPUMEM_VALIDVA)) {
         // Map to user
         uao = uao_create(size, 0);
-        va = p->p_emul->e_vm_default_addr(p, (vaddr_t)p->p_vmspace->vm_daddr, size, map.vm_map.flags & VM_MAP_TOPDOWN);
+        va = p->p_emul->e_vm_default_addr(p, (vaddr_t)p->p_vmspace->vm_daddr, size, map->flags & VM_MAP_TOPDOWN);
         err = uvm_map(map, &va, size, uao, 0, 0,
                       UVM_MAPFLAG(UVM_PROT_RW, UVM_PROT_RW, UVM_INH_NONE,
                                   UVM_ADV_RANDOM, 0));

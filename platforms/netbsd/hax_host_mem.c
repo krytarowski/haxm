@@ -39,72 +39,12 @@
 #include "../../include/hax_host_mem.h"
 #include "../../core/include/paging.h"
 
-static inline void *
-page_address(struct vm_page *page)
-{
-	return (void *)(PMAP_MAP_POOLPAGE(VM_PAGE_TO_PHYS(page)));
-}
-
-
-static inline void *
-vmap(struct vm_page **pages, unsigned npages, unsigned long flags,
-    pgprot_t protflags)
-{
-        vm_prot_t justprot = protflags & UVM_PROT_ALL;
-        vaddr_t va;
-        unsigned i;
-
-        /* Allocate some KVA, or return NULL if we can't.  */
-        va = uvm_km_alloc(kernel_map, (vsize_t)npages << PAGE_SHIFT, PAGE_SIZE,
-            UVM_KMF_VAONLY|UVM_KMF_NOWAIT);
-        if (va == 0)
-                return NULL;
-
-        /* Ask pmap to map the KVA to the specified page addresses.  */
-        for (i = 0; i < npages; i++) {
-                pmap_kenter_pa(va + i*PAGE_SIZE, page_to_phys(pages[i]),
-                    justprot, protflags);
-        }
-
-        /* Commit the pmap updates.  */
-        pmap_update(pmap_kernel());
-
-        return (void *)va;
-}
-
-static inline void
-vfree(void *ptr)
-{
-	if (ptr == NULL)
-		return;
-	uvm_km_free(kernel_map, (vaddr_t)ptr, (vsize_t)1 << PAGE_SHIFT, UVM_KMF_VAONLY|UVM_KMF_NOWAIT);
-	pmap_update(pmap_kernel());
-}
-
-static inline void
-vunmap(void *ptr, unsigned npages)
-{
-        vaddr_t va = (vaddr_t)ptr;
-
-        /* Ask pmap to unmap the KVA.  */
-        pmap_kremove(va, (vsize_t)npages << PAGE_SHIFT);
-
-        /* Commit the pmap updates.  */
-        pmap_update(pmap_kernel());
-
-        /*
-         * Now that the pmap is no longer mapping the KVA we allocated
-         * on any CPU, it is safe to free the KVA.
-         */
-        uvm_km_free(kernel_map, va, (vsize_t)npages << PAGE_SHIFT,
-            UVM_KMF_VAONLY);
-}
-
 int hax_pin_user_pages(uint64_t start_uva, uint64_t size, hax_memdesc_user *memdesc)
 {
+    struct vm_page *page;
+    struct vm_map *map;
     vaddr_t va, end_va;
     paddr_t pa;
-    struct vm_page *page;
 
     if (start_uva & ~PAGE_MASK)
         return -EINVAL;
@@ -112,6 +52,8 @@ int hax_pin_user_pages(uint64_t start_uva, uint64_t size, hax_memdesc_user *memd
         return -EINVAL;
     if (!size)
         return -EINVAL;
+
+    map = &curproc->p_vmspace->vm_map;
 
     for (va = start_uva, end_va = start_uva + size; va < end_va; va += PAGE_SIZE) {
         if (!pmap_extract(map->pmap, va, &pa))
@@ -123,15 +65,17 @@ int hax_pin_user_pages(uint64_t start_uva, uint64_t size, hax_memdesc_user *memd
         SET(page->flags, PG_CLEAN);
     }
 
-    memdesc->uva = uva;
+    memdesc->uva = start_uva;
     memdesc->size = size;
     return 0;
 }
 
 int hax_unpin_user_pages(hax_memdesc_user *memdesc)
 {
+    struct vm_map *map;
     struct vm_page *page;
     vsize_t size;
+    paddr_t pa;
     vaddr_t uva, va, end_va;
 
     if (!memdesc)
@@ -143,6 +87,8 @@ int hax_unpin_user_pages(hax_memdesc_user *memdesc)
 
     size = memdesc->size;
     uva = memdesc->uva;
+
+    map = &curproc->p_vmspace->vm_map;
 
     for (va = uva, end_va = uva + size; va < end_va; va += PAGE_SIZE) {
         if (!pmap_extract(map->pmap, va, &pa))
@@ -187,6 +133,7 @@ uint64_t hax_get_pfn_user(hax_memdesc_user *memdesc, uint64_t uva_offset)
 void * hax_map_user_pages(hax_memdesc_user *memdesc, uint64_t uva_offset,
                           uint64_t size, hax_kmap_user *kmap)
 {
+    struct vm_map *map;
     struct vm_page *page;
     vaddr_t uva, va, end_va;
     vaddr_t kva;
@@ -195,9 +142,9 @@ void * hax_map_user_pages(hax_memdesc_user *memdesc, uint64_t uva_offset,
     if (!memdesc)
         return NULL;
     if (!memdesc->size)
-        return -EINVAL;
+        return NULL;
     if (!memdesc->uva)
-        return -EINVAL;
+        return NULL;
     if (!kmap)
         return NULL;
     if (!size)
@@ -206,11 +153,13 @@ void * hax_map_user_pages(hax_memdesc_user *memdesc, uint64_t uva_offset,
         return NULL;
 
     uva = trunc_page(memdesc->uva + uva_offset);
-    size = rount_page(size);
+    size = round_page(size);
 
     kva = uvm_km_alloc(kernel_map, size, PAGE_SIZE, UVM_KMF_VAONLY|UVM_KMF_WAITVA);
 
-    for (va = start_uva, end_va = start_uva + size; va < end_va; va += PAGE_SIZE) {
+    map = &curproc->p_vmspace->vm_map;
+
+    for (va = uva, end_va = uva + size; va < end_va; va += PAGE_SIZE) {
         if (!pmap_extract(map->pmap, va, &pa))
             break;
         pmap_kenter_pa(va, pa, VM_PROT_READ | VM_PROT_WRITE, PMAP_WIRED);
@@ -219,7 +168,7 @@ void * hax_map_user_pages(hax_memdesc_user *memdesc, uint64_t uva_offset,
 
     kmap->kva = kva;
     kmap->size = size;
-    return kva;
+    return (void *)kva;
 }
 
 int hax_unmap_user_pages(hax_kmap_user *kmap)
@@ -287,7 +236,7 @@ void * hax_get_kva_phys(hax_memdesc_phys *memdesc)
 {
     if (!memdesc)
         return NULL;
-    if (!memdesc->ppage)
+    if (!memdesc->page)
         return NULL;
 
     return (void *)(PMAP_MAP_POOLPAGE(VM_PAGE_TO_PHYS(memdesc->page)));
@@ -306,11 +255,11 @@ void * hax_map_page_frame(uint64_t pfn, hax_kmap_phys *kmap)
 
     pa = pfn << PAGE_SHIFT;
 
-    pmap_kenter_pa(kva, pa,  VM_PROT_READ | VM_PROT_WRITE, PMAP_WIRED);
+    pmap_kenter_pa(kva, pa, VM_PROT_READ | VM_PROT_WRITE, PMAP_WIRED);
     pmap_update(pmap_kernel());
 
     kmap->kva = kva;
-    return kva;
+    return (void *)kva;
 }
 
 int hax_unmap_page_frame(hax_kmap_phys *kmap)
