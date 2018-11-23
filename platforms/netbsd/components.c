@@ -68,8 +68,6 @@ struct hax_vm_softc {
 
 static device_t hax_vm_sc_self;
 
-extern struct cfdriver hax_vm_cd;
-
 static int hax_vm_match(device_t, cfdata_t, void *);
 static void hax_vm_attach(device_t, device_t, void *);
 static int hax_vm_detach(device_t, int);
@@ -83,8 +81,6 @@ struct hax_vcpu_softc {
 };
 
 static device_t hax_vcpu_sc_self;
-
-extern struct cfdriver hax_vcpu_cd;
 
 static int hax_vcpu_match(device_t, cfdata_t, void *);
 static void hax_vcpu_attach(device_t, device_t, void *);
@@ -272,7 +268,7 @@ int hax_vcpu_open(dev_t self, int flag __unused, int mode __unused,
     struct hax_vcpu_netbsd_t *vcpu;
     int ret;
 
-    sc = device_lookup_private(&hax_vcpu_cd, minor(self));
+    sc = device_lookup_private(&hax_vcpu_ca, minor(self));
     vcpu = sc->vcpu;
     cvcpu = hax_get_vcpu(vcpu->vm->id, vcpu->id, 1);
 
@@ -295,7 +291,7 @@ int hax_vcpu_close(dev_t self, int flag __unused, int mode __unused,
     struct vcpu_t *cvcpu;
     struct hax_vcpu_netbsd_t *vcpu;
 
-    sc = device_lookup_private(&hax_vcpu_cd, minor(self));
+    sc = device_lookup_private(&hax_vcpu_ca, minor(self));
     vcpu = sc->vcpu;
     cvcpu = hax_get_vcpu(vcpu->vm->id, vcpu->id, 1);
 
@@ -321,7 +317,7 @@ int hax_vcpu_ioctl(dev_t self, u_long cmd, void *data, int flag,
     struct vcpu_t *cvcpu;
     struct hax_vcpu_netbsd_t *vcpu;
 
-    sc = device_lookup_private(&hax_vcpu_cd, minor(self));
+    sc = device_lookup_private(&hax_vcpu_ca, minor(self));
     vcpu = sc->vcpu;
     cvcpu = hax_get_vcpu(vcpu->vm->id, vcpu->id, 1);
 
@@ -438,7 +434,7 @@ int hax_vm_open(dev_t self, int flag __unused, int mode __unused,
     struct hax_vm_netbsd_t *vm;
     int ret;
 
-    sc = device_lookup_private(&hax_vm_cd, minor(self));
+    sc = device_lookup_private(&hax_vm_ca, minor(self));
     vm = sc->vm;
     cvm = hax_get_vm(vm->id, 1);
     if (!cvm)
@@ -458,7 +454,7 @@ int hax_vm_close(dev_t self __unused, int flag __unused, int mode __unused,
     struct hax_vm_netbsd_t *vm;
     int ret;
 
-    sc = device_lookup_private(&hax_vm_cd, minor(self));
+    sc = device_lookup_private(&hax_vm_ca, minor(self));
     vm = sc->vm;
     cvm = hax_get_vm(vm->id, 1);
 
@@ -479,7 +475,7 @@ int hax_vm_ioctl(dev_t self __unused, u_long cmd, void *data, int flag,
     struct hax_vm_netbsd_t *vm;
     struct hax_vm_softc *sc;
 
-    sc = device_lookup_private(&hax_vm_cd, minor(self));
+    sc = device_lookup_private(&hax_vm_ca, minor(self));
     vm = sc->vm;
     cvm = hax_get_vm(vm->id, 1);
     if (!cvm)
