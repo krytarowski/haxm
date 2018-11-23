@@ -72,6 +72,7 @@ struct hax_page {
 };
 
 typedef struct hax_memdesc_user {
+    vaddr_t uva;
     vsize_t size;
 } hax_memdesc_user;
 
