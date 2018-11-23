@@ -72,9 +72,7 @@ struct hax_page {
 };
 
 typedef struct hax_memdesc_user {
-    size_t nr_pages;
-    size_t nr_pages_pinned;
-    struct vm_page **pages;
+    vsize_t size;
 } hax_memdesc_user;
 
 typedef struct hax_kmap_user {

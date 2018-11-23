@@ -164,9 +164,9 @@ vunmap(void *ptr, unsigned npages)
 
 int hax_pin_user_pages(uint64_t start_uva, uint64_t size, hax_memdesc_user *memdesc)
 {
-    size_t nr_pages;
-    size_t nr_pages_pinned;
-    struct vm_page **pages;
+    vaddr_t va, end_va;
+    paddr_t pa;
+    struct vm_page *page;
 
     if (start_uva & ~PAGE_MASK)
         return -EINVAL;
@@ -174,18 +174,18 @@ int hax_pin_user_pages(uint64_t start_uva, uint64_t size, hax_memdesc_user *memd
         return -EINVAL;
     if (!size)
         return -EINVAL;
-    
-    nr_pages = ((size - 1) / PAGE_SIZE) + 1;
-    pages = kmem_alloc(sizeof(struct vm_page *) * nr_pages, KM_SLEEP);
 
-    nr_pages_pinned = get_user_pages(start_uva, nr_pages, pages);
-    if (nr_pages_pinned <= 0) {
-        kmem_free(pages, sizeof(struct vm_page *) * nr_pages);
-        return -EFAULT;
+    for (va = start_uva, end_va = start_uva + size; va < end_va; va += PAGE_SIZE) {
+        if (!pmap_extract(map->pmap, va, &pa))
+            break;
+        page = PHYS_TO_VM_PAGE(pa);
+        mutex_enter(&uvm_pageqlock);
+        uvm_pagewire(page);
+        mutex_exit(&uvm_pageqlock);
+        CLR(page->flags, PG_CLEAN);
     }
-    memdesc->nr_pages = nr_pages;
-    memdesc->nr_pages_pinned = nr_pages_pinned;
-    memdesc->pages = pages;
+
+    memdesc->size = size;
     return 0;
 }
 
