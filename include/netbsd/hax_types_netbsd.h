@@ -77,8 +77,8 @@ typedef struct hax_memdesc_user {
 } hax_memdesc_user;
 
 typedef struct hax_kmap_user {
-    void *kva;
-    size_t npages;
+    vaddr_t kva;
+    vsize_t size;
 } hax_kmap_user;
 
 typedef struct hax_memdesc_phys {

@@ -249,32 +249,48 @@ uint64_t hax_get_pfn_user(hax_memdesc_user *memdesc, uint64_t uva_offset)
 void * hax_map_user_pages(hax_memdesc_user *memdesc, uint64_t uva_offset,
                           uint64_t size, hax_kmap_user *kmap)
 {
-    void *kva;
-    int page_idx_start;
-    int page_idx_stop;
-    int subrange_pages_nr;
-    struct vm_page **subrange_pages;
+    struct vm_page *page;
+    vaddr_t uva, va, end_va;
+    vaddr_t kva;
+    paddr_t pa;
 
-    if (!memdesc || !kmap || size == 0)
+    if (!memdesc)
+        return NULL;
+    if (!memdesc->size)
+        return -EINVAL;
+    if (!memdesc->uva)
+        return -EINVAL;
+    if (!kmap)
+        return NULL;
+    if (!size)
+        return NULL;
+    if (size + uva_offset > memdesc->size)
         return NULL;
 
-    page_idx_start = uva_offset / PAGE_SIZE;
-    page_idx_stop = (uva_offset + size - 1) / PAGE_SIZE;
-    if ((page_idx_start >= memdesc->nr_pages) ||
-        (page_idx_stop >= memdesc->nr_pages))
-        return NULL;
+    uva = trunc_page(memdesc->uva + uva_offset);
+    size = rount_page(size);
 
-    subrange_pages_nr = page_idx_stop - page_idx_start + 1;
-    subrange_pages = &memdesc->pages[page_idx_start];
-    kva = vmap(subrange_pages, subrange_pages_nr, VM_MAP, PAGE_KERNEL);
+    kva = uvm_km_alloc(kernel_map, size, PAGE_SIZE, UVM_KMF_VAONLY|UVM_KMF_WAITVA);
+
+    for (va = start_uva, end_va = start_uva + size; va < end_va; va += PAGE_SIZE) {
+        if (!pmap_extract(map->pmap, va, &pa))
+            break;
+        pmap_kenter_pa(va, pa, VM_PROT_READ | VM_PROT_WRITE, PMAP_WIRED);
+    }
+    pmap_update(pmap_kernel());
+
     kmap->kva = kva;
-    kmap->npages = subrange_pages_nr;
+    kmap->size = size;
     return kva;
 }
 
 int hax_unmap_user_pages(hax_kmap_user *kmap)
 {
     if (!kmap)
+        return -EINVAL;
+    if (!kmap->kva)
+        return -EINVAL;
+    if (!kmap->size)
         return -EINVAL;
 
     vunmap(kmap->kva, kmap->npages);
