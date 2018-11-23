@@ -43,7 +43,7 @@
 #include "../../core/include/hax_core_interface.h"
 #include "../../core/include/ia32.h"
 
-int default_hax_log_level = 3;
+int default_hax_log_level = -1;
 int max_cpus;
 hax_cpumap_t cpu_online_map;
 
@@ -221,16 +221,36 @@ hax_atomic_t hax_atomic_dec(volatile hax_atomic_t *atom)
 
 int hax_test_and_set_bit(int bit, uint64_t *memory)
 {
-    uint64_t bits = __BIT(bit);
-    uint64_t old = *memory;
-    return atomic_or_64_nv(memory, bits) != old;
+    volatile uint64_t *val;
+    uint64_t mask, old;
+
+    val = (volatile uint64_t *)memory;
+    mask = 1 << bit;
+
+    do {
+        old = *val;
+        if ((old & mask) != 0)
+            break;
+    } while (atomic_cas_64(val, old, old | mask) != old);
+
+    return !!(old & mask);
 }
 
 int hax_test_and_clear_bit(int bit, uint64_t *memory)
 {
-    uint64_t bits = ~(__BIT(bit));
-    uint64_t old = *memory;
-    return atomic_and_64_nv(memory, bits) != old;
+    volatile uint64_t *val;
+    uint64_t mask, old;
+
+    val = (volatile uint64_t *)memory;
+    mask = 1 << bit;
+
+    do {
+        old = *val;
+        if ((old & mask) != 0)
+            break;
+    } while (atomic_cas_64(val, old, old & ~mask) != old);
+
+    return !!(old & mask);
 }
 
 /* Spinlock */
