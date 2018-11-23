@@ -286,6 +286,9 @@ void * hax_map_user_pages(hax_memdesc_user *memdesc, uint64_t uva_offset,
 
 int hax_unmap_user_pages(hax_kmap_user *kmap)
 {
+    vaddr_t kva;
+    vsize_t size;
+
     if (!kmap)
         return -EINVAL;
     if (!kmap->kva)
@@ -293,7 +296,13 @@ int hax_unmap_user_pages(hax_kmap_user *kmap)
     if (!kmap->size)
         return -EINVAL;
 
-    vunmap(kmap->kva, kmap->npages);
+    kva = kmap->kva;
+    size = kmap->size;
+
+    pmap_kremove(kva, size);
+    pmap_update(pmap_kernel());
+
+    uvm_km_free(kernel_map, kva, size, UVM_KMF_VAONLY);
     return 0;
 }
 
