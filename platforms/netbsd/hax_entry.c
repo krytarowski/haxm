@@ -128,14 +128,22 @@ int hax_dev_ioctl(dev_t self __unused, u_long cmd, void *data, int flag,
 
 static int hax_driver_init(void)
 {
-    // src/sys/kern/kern_cpu.c
-    extern int ncpu;       /* number of CPUs */
-    extern int ncpuonline; /* number of CPUs online */
+    struct cpu_info *ci;
+    CPU_INFO_ITERATOR cii;
+    struct schedstate_percpu *spc;
     int i, err;
 
     // Initialization
-    max_cpus = ncpu;
-    cpu_online_map = ncpuonline;
+    max_cpus = 0;
+
+    ci = NULL;
+
+    for (CPU_INFO_FOREACH(cii, ci)) {
+        ++max_cpus;
+        if (!ISSET(ci->ci_schedstate.spc_flags, SPCF_OFFLINE)) {
+            cpu_online_map |= __BIT(ci->ci_cpuid);
+        }
+    }
 
     if (hax_module_init() < 0) {
         hax_error("Failed to initialize HAXM module\n");
