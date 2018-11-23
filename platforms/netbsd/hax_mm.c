@@ -28,12 +28,17 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include <sys/param.h>
+#include <sys/types.h>
+#include <sys/kmem.h>
+#include <uvm/uvm.h>
+
 #include "../../include/hax.h"
 
 typedef struct hax_vcpu_mem_hinfo_t {
     int flags;
     int nr_pages;
-    struct page **pages;
+    struct pglist *pglist;
 } hax_vcpu_mem_hinfo_t;
 
 int hax_clear_vcpumem(struct hax_vcpu_mem *mem)
@@ -61,25 +66,17 @@ int hax_setup_vcpumem(struct hax_vcpu_mem *mem, uint64_t uva, uint32_t size,
     int err = 0;
     int nr_pages;
     int nr_pages_map;
-    struct page **pages = NULL;
+    struct pglist *pglist = NULL;
     struct hax_vcpu_mem_hinfo_t *hinfo = NULL;
     void *kva;
 
     if (!mem || !size)
         return -EINVAL;
 
-    hinfo = kmalloc(sizeof(struct hax_vcpu_mem_hinfo_t), GFP_KERNEL);
-    if (!hinfo) {
-        err = -ENOMEM;
-        goto fail;
-    }
+    hinfo = kmem_alloc(sizeof(struct hax_vcpu_mem_hinfo_t), KM_SLEEP);
 
     nr_pages = ((size - 1) / PAGE_SIZE) + 1;
-    pages = kmalloc(sizeof(struct page *) * nr_pages, GFP_KERNEL);
-    if (!pages) {
-        err = -ENOMEM;
-        goto fail;
-    }
+    pglist = kmem_alloc(sizeof(struct page *) * nr_pages, KM_SLEEP);
 
     if (!(flags & HAX_VCPUMEM_VALIDVA)) {
         uva = vm_mmap(NULL, 0, size, PROT_READ | PROT_WRITE,
