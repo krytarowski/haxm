@@ -53,7 +53,7 @@ int hax_log_level(int level, const char *fmt,  ...)
     va_start(args, fmt);
     if (level >= default_hax_log_level) {
         printf("haxm: ");
-        printf(fmt, args);
+        vprintf(fmt, args);
     }
     va_end(args);
     return 0;
@@ -125,62 +125,62 @@ void hax_disable_irq(void)
 void hax_error(char *fmt, ...)
 {
     va_list args;
-    va_start(args, fmt);
 
     if (HAX_LOGE < default_hax_log_level)
         return;
 
+    va_start(args, fmt);
     printf("haxm_error: ");
-    printf(fmt, args);
+    vprintf(fmt, args);
     va_end(args);
 }
 
 void hax_warning(char *fmt, ...)
 {
     va_list args;
-    va_start(args, fmt);
 
     if (HAX_LOGW < default_hax_log_level)
         return;
 
+    va_start(args, fmt);
     printf("haxm_warning: ");
-    printf(fmt, args);
+    vprintf(fmt, args);
     va_end(args);
 }
 
 void hax_info(char *fmt, ...)
 {
     va_list args;
-    va_start(args, fmt);
 
     if (HAX_LOGI < default_hax_log_level)
         return;
 
+    va_start(args, fmt);
     printf("haxm_info: ");
-    printf(fmt, args);
+    vprintf(fmt, args);
     va_end(args);
 }
 
 void hax_debug(char *fmt, ...)
 {
     va_list args;
-    va_start(args, fmt);
 
     if (HAX_LOGD < default_hax_log_level)
         return;
 
+    va_start(args, fmt);
     printf("haxm_debug: ");
-    printf(fmt, args);
+    vprintf(fmt, args);
     va_end(args);
 }
 
 void hax_panic_vcpu(struct vcpu_t *v, char *fmt, ...)
 {
     va_list args;
-    va_start(args, fmt);
 
+    va_start(args, fmt);
     printf("haxm_panic: ");
-    printf(fmt, args);
+    vprintf(fmt, args);
     va_end(args);
 
     vcpu_set_panic(v);
