@@ -273,12 +273,16 @@ int hax_vcpu_open(dev_t self, int flag __unused, int mode __unused,
     int ret;
 
     sc = device_lookup_private(&hax_vcpu_cd, minor(self));
+    if (sc == NULL) {
+        hax_error("device_lookup_private() for hax_vcpu failed\n");
+        return ENODEV;
+    }
     vcpu = sc->vcpu;
     cvcpu = hax_get_vcpu(vcpu->vm->id, vcpu->id, 1);
 
     hax_log_level(HAX_LOGD, "HAX vcpu open called\n");
     if (!cvcpu)
-        return -ENODEV;
+        return ENODEV;
 
     ret = hax_vcpu_core_open(cvcpu);
     if (ret)
@@ -296,6 +300,10 @@ int hax_vcpu_close(dev_t self, int flag __unused, int mode __unused,
     struct hax_vcpu_netbsd_t *vcpu;
 
     sc = device_lookup_private(&hax_vcpu_cd, minor(self));
+    if (sc == NULL) {
+        hax_error("device_lookup_private() for hax_vcpu failed\n");
+        return ENODEV;
+    }
     vcpu = sc->vcpu;
     cvcpu = hax_get_vcpu(vcpu->vm->id, vcpu->id, 1);
 
@@ -322,6 +330,10 @@ int hax_vcpu_ioctl(dev_t self, u_long cmd, void *data, int flag,
     struct hax_vcpu_netbsd_t *vcpu;
 
     sc = device_lookup_private(&hax_vcpu_cd, minor(self));
+    if (sc == NULL) {
+        hax_error("device_lookup_private() for hax_vcpu failed\n");
+        return ENODEV;
+    }
     vcpu = sc->vcpu;
     cvcpu = hax_get_vcpu(vcpu->vm->id, vcpu->id, 1);
 
@@ -439,10 +451,14 @@ int hax_vm_open(dev_t self, int flag __unused, int mode __unused,
     int ret;
 
     sc = device_lookup_private(&hax_vm_cd, minor(self));
+    if (sc == NULL) {
+        hax_error("device_lookup_private() for hax_vm failed\n");
+        return ENODEV;
+    }
     vm = sc->vm;
     cvm = hax_get_vm(vm->id, 1);
     if (!cvm)
-        return -ENODEV;
+        return ENODEV;
 
     ret = hax_vm_core_open(cvm);
     hax_put_vm(cvm);
@@ -459,6 +475,10 @@ int hax_vm_close(dev_t self __unused, int flag __unused, int mode __unused,
     int ret;
 
     sc = device_lookup_private(&hax_vm_cd, minor(self));
+    if (sc == NULL) {
+        hax_error("device_lookup_private() for hax_vm failed\n");
+        return ENODEV;
+    }
     vm = sc->vm;
     cvm = hax_get_vm(vm->id, 1);
 
@@ -480,10 +500,14 @@ int hax_vm_ioctl(dev_t self __unused, u_long cmd, void *data, int flag,
     struct hax_vm_softc *sc;
 
     sc = device_lookup_private(&hax_vm_cd, minor(self));
+    if (sc == NULL) {
+        hax_error("device_lookup_private() for hax_vm failed\n");
+        return ENODEV;
+    }
     vm = sc->vm;
     cvm = hax_get_vm(vm->id, 1);
     if (!cvm)
-        return -ENODEV;
+        return ENODEV;
 
     switch (cmd) {
     case HAX_VM_IOCTL_VCPU_CREATE:
@@ -587,6 +611,10 @@ hax_vm_attach(device_t parent, device_t self, void *aux)
         return;
 
     sc = device_private(self);
+    if (sc == NULL) {
+        hax_error("device_private() for hax_vm failed\n");
+        return ENODEV;
+    }
     sc->sc_dev = self;
     hax_vm_sc_self = self;
 
@@ -600,6 +628,10 @@ hax_vm_detach(device_t self, int flags)
     struct hax_vm_softc *sc;
 
     sc = device_private(self);
+    if (sc == NULL) {
+        hax_error("device_private() for hax_vm failed\n");
+        return ENODEV;
+    }
     pmf_device_deregister(self);
 
     hax_vm_sc_self = NULL;
@@ -621,6 +653,10 @@ hax_vcpu_attach(device_t parent, device_t self, void *aux)
         return;
 
     sc = device_private(self);
+    if (sc == NULL) {
+        hax_error("device_private() for hax_vcpu failed\n");
+        return ENODEV;
+    }
     sc->sc_dev = self;
     hax_vcpu_sc_self = self;
 
@@ -634,6 +670,10 @@ hax_vcpu_detach(device_t self, int flags)
     struct hax_vcpu_softc *sc;
 
     sc = device_private(self);
+    if (sc == NULL) {
+        hax_error("device_private() for hax_vm failed\n");
+        return ENODEV;
+    }
     pmf_device_deregister(self);
 
     hax_vcpu_sc_self = NULL;
