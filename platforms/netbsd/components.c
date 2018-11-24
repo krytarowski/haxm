@@ -166,6 +166,7 @@ int hax_vcpu_create_host(struct vcpu_t *cvcpu, void *vm_host, int vm_id,
         hax_vcpu_destroy_netbsd(vcpu);
         return -1;
     }
+    hax_vcpu_sc_self->vcpu = vcpu;
     hax_info("Created HAXM-VCPU device '%s'\n", vcpu->devname);
     return 0;
 }
@@ -239,6 +240,7 @@ int hax_vm_create_host(struct vm_t *cvm, int vm_id)
         hax_vm_destroy_netbsd(vm);
         return -1;
     }
+    hax_vm_sc_self->vm = vm;
     hax_info("Created HAXM-VM device '%s'\n", vm->devname);
     return 0;
 }
@@ -455,6 +457,7 @@ int hax_vm_open(dev_t self, int flag __unused, int mode __unused,
         hax_error("device_lookup_private() for hax_vm failed\n");
         return ENODEV;
     }
+
     vm = sc->vm;
     cvm = hax_get_vm(vm->id, 1);
     if (!cvm)
@@ -479,6 +482,7 @@ int hax_vm_close(dev_t self __unused, int flag __unused, int mode __unused,
         hax_error("device_lookup_private() for hax_vm failed\n");
         return ENODEV;
     }
+
     vm = sc->vm;
     cvm = hax_get_vm(vm->id, 1);
 
