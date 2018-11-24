@@ -53,7 +53,7 @@ int hax_clear_vcpumem(struct hax_vcpu_mem *mem)
     hinfo = mem->hinfo;
 
     uva = mem->uva;
-    kva = (vaddr_t)mem->kva;
+    kva = mem->kva;
     size = mem->size;
 
     pmap_kremove(kva, size);
@@ -127,7 +127,7 @@ int hax_setup_vcpumem(struct hax_vcpu_mem *mem, uint64_t uva, uint32_t size,
     pmap_update(pmap_kernel());
 
     mem->uva = uva;
-    mem->kva = (void *)kva;
+    mem->kva = kva;
     mem->hinfo = hinfo;
     mem->size = size;
     return 0;
