@@ -145,11 +145,14 @@ void * hax_map_user_pages(hax_memdesc_user *memdesc, uint64_t uva_offset,
 
     map = &curproc->p_vmspace->vm_map;
 
-    err = uvm_map_extract(map, uva, size, kernel_map, &kva,  UVM_EXTRACT_QREF | UVM_EXTRACT_CONTIG | UVM_EXTRACT_FIXPROT);
-    if (err) {
-        hax_error("Failed to map user page uva=%p size=%zu into kernel\n", (void *)uva, (size_t)size);
-        return NULL;
+    kva = uvm_km_alloc(kernel_map, size, PAGE_SIZE, UVM_KMF_VAONLY|UVM_KMF_WAITVA);
+
+    for (va = uva, end_va = uva + size; va < end_va; va += PAGE_SIZE) {
+        if (!pmap_extract(map->pmap, va, &pa))
+            break;
+        pmap_kenter_pa(va, pa, VM_PROT_READ | VM_PROT_WRITE, PMAP_WIRED);
     }
+    pmap_update(pmap_kernel());
 
     kmap->kva = kva;
     kmap->size = size;
@@ -171,7 +174,10 @@ int hax_unmap_user_pages(hax_kmap_user *kmap)
     kva = kmap->kva;
     size = kmap->size;
 
-    uvm_unmap(kernel_map, kva, kva + size);
+    pmap_kremove(kva, size);
+    pmap_update(pmap_kernel());
+
+    uvm_km_free(kernel_map, kva, size, UVM_KMF_VAONLY);
 
     return 0;
 }
