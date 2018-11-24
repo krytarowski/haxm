@@ -61,7 +61,7 @@ int hax_clear_vcpumem(struct hax_vcpu_mem *mem)
 
     if (!ISSET(hinfo->flags, HAX_VCPUMEM_VALIDVA)) {
         map = &curproc->p_vmspace->vm_map;
-        uvm_unmap(map, uva, size);
+        uvm_unmap(map, uva, uva + size);
         uao_detach(hinfo->uao);
     }
 
