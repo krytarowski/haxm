@@ -56,16 +56,13 @@ int hax_clear_vcpumem(struct hax_vcpu_mem *mem)
     kva = mem->kva;
     size = mem->size;
 
-    pmap_kremove(kva, size);
-    pmap_update(pmap_kernel());
-
     if (!ISSET(hinfo->flags, HAX_VCPUMEM_VALIDVA)) {
         map = &curproc->p_vmspace->vm_map;
         uvm_unmap(map, uva, uva + size);
         uao_detach(hinfo->uao);
     }
 
-    uvm_km_free(kernel_map, kva, size, UVM_KMF_VAONLY);
+    uvm_unmap(kernel_map, kva, kva + size);
 
     kmem_free(hinfo, sizeof(struct hax_vcpu_mem_hinfo_t));
 
@@ -115,18 +112,6 @@ int hax_setup_vcpumem(struct hax_vcpu_mem *mem, uint64_t uva, uint32_t size,
         uva = va;
     }
 
-#if 0
-    kva = uvm_km_alloc(kernel_map, size, PAGE_SIZE,
-                       UVM_KMF_VAONLY|UVM_KMF_WAITVA);
-
-    for (va = uva, end_va = uva + size, kva2 = kva; va < end_va; va += PAGE_SIZE, kva2 += PAGE_SIZE) {
-        if (!pmap_extract(map->pmap, va, &pa))
-            break;
-        pmap_kenter_pa(kva2, pa, VM_PROT_READ | VM_PROT_WRITE, PMAP_WIRED);
-    }
-
-    pmap_update(pmap_kernel());
-#endif
     err = uvm_map_extract(map, uva, size, kernel_map, &kva,  UVM_EXTRACT_QREF | UVM_EXTRACT_CONTIG | UVM_EXTRACT_FIXPROT);
     if (err) {
         hax_error("Failed to map into kernel\n");
