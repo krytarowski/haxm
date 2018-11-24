@@ -50,10 +50,6 @@ int hax_pin_user_pages(uint64_t start_uva, uint64_t size, hax_memdesc_user *memd
         hax_error("Failed 'start_uva & ~PAGE_MASK', start_uva=%llx\n", start_uva);
         return -EINVAL;
     }
-    if (size & PAGE_MASK) {
-        hax_error("Failed 'size & ~PAGE_MASK', size=%llx\n", size);
-        return -EINVAL;
-    }
     if (!size) {
         hax_error("Failed '!size'\n");
         return -EINVAL;
@@ -129,6 +125,7 @@ void * hax_map_user_pages(hax_memdesc_user *memdesc, uint64_t uva_offset,
     vaddr_t uva, va, end_va;
     vaddr_t kva;
     paddr_t pa;
+    int err;
 
     if (!memdesc)
         return NULL;
@@ -146,16 +143,13 @@ void * hax_map_user_pages(hax_memdesc_user *memdesc, uint64_t uva_offset,
     uva = trunc_page(memdesc->uva + uva_offset);
     size = round_page(size);
 
-    kva = uvm_km_alloc(kernel_map, size, PAGE_SIZE, UVM_KMF_VAONLY|UVM_KMF_WAITVA);
-
     map = &curproc->p_vmspace->vm_map;
 
-    for (va = uva, end_va = uva + size; va < end_va; va += PAGE_SIZE) {
-        if (!pmap_extract(map->pmap, va, &pa))
-            break;
-        pmap_kenter_pa(va, pa, VM_PROT_READ | VM_PROT_WRITE, PMAP_WIRED);
+    err = uvm_map_extract(map, uva, size, kernel_map, &kva,  UVM_EXTRACT_QREF | UVM_EXTRACT_CONTIG | UVM_EXTRACT_FIXPROT);
+    if (err) {
+        hax_error("Failed to map user page uva=%p size=%zu into kernel\n", (void *)uva, (size_t)size);
+        return NULL;
     }
-    pmap_update(pmap_kernel());
 
     kmap->kva = kva;
     kmap->size = size;
@@ -177,10 +171,8 @@ int hax_unmap_user_pages(hax_kmap_user *kmap)
     kva = kmap->kva;
     size = kmap->size;
 
-    pmap_kremove(kva, size);
-    pmap_update(pmap_kernel());
+    uvm_unmap(kernel_map, kva, kva + size);
 
-    uvm_km_free(kernel_map, kva, size, UVM_KMF_VAONLY);
     return 0;
 }
 
