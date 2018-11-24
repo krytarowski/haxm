@@ -61,7 +61,7 @@ int hax_pin_user_pages(uint64_t start_uva, uint64_t size, hax_memdesc_user *memd
 
     map = &curproc->p_vmspace->vm_map;
 
-    uvm_fault_write(map, start_uva, size, VM_PROT_READ | VM_PROT_WRITE, 0);
+    uvm_fault_wire(map, start_uva, size, VM_PROT_READ | VM_PROT_WRITE, 0);
 
     memdesc->uva = start_uva;
     memdesc->size = size;
@@ -88,7 +88,7 @@ int hax_unpin_user_pages(hax_memdesc_user *memdesc)
 
     map = &curproc->p_vmspace->vm_map;
 
-    uvm_fault_unwrite(map, uva, uva + size);
+    uvm_fault_unwire(map, uva, uva + size);
 
     return 0;
 }
