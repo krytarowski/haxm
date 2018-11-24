@@ -46,11 +46,11 @@ int hax_pin_user_pages(uint64_t start_uva, uint64_t size, hax_memdesc_user *memd
     vaddr_t va, end_va;
     paddr_t pa;
 
-    if (start_uva & ~PAGE_MASK) {
+    if (start_uva & PAGE_MASK) {
         hax_error("Failed 'start_uva & ~PAGE_MASK', start_uva=%llx\n", start_uva);
         return -EINVAL;
     }
-    if (size & ~PAGE_MASK) {
+    if (size & PAGE_MASK) {
         hax_error("Failed 'size & ~PAGE_MASK', size=%llx\n", size);
         return -EINVAL;
     }

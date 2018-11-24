@@ -62,7 +62,7 @@ int hax_clear_vcpumem(struct hax_vcpu_mem *mem)
         uao_detach(hinfo->uao);
     }
 
-    uvm_unmap(kernel_map, kva, kva + size);
+//    uvm_unmap(kernel_map, kva, kva + size);
 
     kmem_free(hinfo, sizeof(struct hax_vcpu_mem_hinfo_t));
 
