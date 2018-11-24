@@ -78,7 +78,7 @@ int hax_setup_vcpumem(struct hax_vcpu_mem *mem, uint64_t uva, uint32_t size,
     struct proc *p;
     struct uvm_object *uao;
     struct vm_map *map;
-    int err = 0;
+    int err;
     struct hax_vcpu_mem_hinfo_t *hinfo = NULL;
     vaddr_t kva, kva2;
     vaddr_t va, end_va;
@@ -115,6 +115,7 @@ int hax_setup_vcpumem(struct hax_vcpu_mem *mem, uint64_t uva, uint32_t size,
         uva = va;
     }
 
+#if 0
     kva = uvm_km_alloc(kernel_map, size, PAGE_SIZE,
                        UVM_KMF_VAONLY|UVM_KMF_WAITVA);
 
@@ -125,6 +126,16 @@ int hax_setup_vcpumem(struct hax_vcpu_mem *mem, uint64_t uva, uint32_t size,
     }
 
     pmap_update(pmap_kernel());
+#endif
+    err = uvm_map_extract(map, uva, size, kernel_map, &kva,  UVM_EXTRACT_QREF | UVM_EXTRACT_CONTIG | UVM_EXTRACT_FIXPROT);
+    if (err) {
+        hax_error("Failed to map into kernel\n");
+        if (!ISSET(flags, HAX_VCPUMEM_VALIDVA)) {
+            uvm_unmap(map, uva, uva + size);
+            uao_detach(uao);
+            kmem_free(hinfo, sizeof(struct hax_vcpu_mem_hinfo_t));
+        }
+    }
 
     mem->uva = uva;
     mem->kva = kva;
