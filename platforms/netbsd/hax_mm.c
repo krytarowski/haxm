@@ -59,10 +59,13 @@ int hax_clear_vcpumem(struct hax_vcpu_mem *mem)
     if (!ISSET(hinfo->flags, HAX_VCPUMEM_VALIDVA)) {
         map = &curproc->p_vmspace->vm_map;
         uvm_unmap(map, uva, uva + size);
-        uao_detach(hinfo->uao);
     }
 
-//    uvm_unmap(kernel_map, kva, kva + size);
+    uvm_unmap(kernel_map, kva, kva + size);
+
+    if (!ISSET(hinfo->flags, HAX_VCPUMEM_VALIDVA)) {
+        uao_detach(hinfo->uao);
+    }
 
     kmem_free(hinfo, sizeof(struct hax_vcpu_mem_hinfo_t));
 
@@ -98,10 +101,12 @@ int hax_setup_vcpumem(struct hax_vcpu_mem *mem, uint64_t uva, uint32_t size,
     if (!ISSET(flags, HAX_VCPUMEM_VALIDVA)) {
         // Map to user
         uao = uao_create(size, 0);
+        uao_reference(uao);
         va = p->p_emul->e_vm_default_addr(p, (vaddr_t)p->p_vmspace->vm_daddr, size, map->flags & VM_MAP_TOPDOWN);
         err = uvm_map(map, &va, size, uao, 0, 0,
                       UVM_MAPFLAG(UVM_PROT_RW, UVM_PROT_RW, UVM_INH_NONE,
                                   UVM_ADV_RANDOM, 0));
+        uao_reference(uao);
         if (err) {
             hax_error("Failed to map into user\n");
             uao_detach(uao);
