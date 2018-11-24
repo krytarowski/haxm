@@ -98,7 +98,7 @@ void * hax_vmap(hax_pa_t pa, uint32_t size)
     kva = uvm_km_alloc(kernel_map, size, PAGE_SIZE, UVM_KMF_VAONLY|UVM_KMF_WAITVA);
 
     for (va = kva, end_va = kva + size; va < end_va; va += PAGE_SIZE, pa += PAGE_SIZE) {
-        pmap_kenter_pa(kva, pa, VM_PROT_READ | VM_PROT_WRITE, PMAP_WIRED);
+        pmap_kenter_pa(va, pa, VM_PROT_READ | VM_PROT_WRITE, PMAP_WIRED);
     }
     pmap_update(pmap_kernel());
 
