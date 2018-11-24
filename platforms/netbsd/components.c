@@ -613,7 +613,7 @@ hax_vm_attach(device_t parent, device_t self, void *aux)
     sc = device_private(self);
     if (sc == NULL) {
         hax_error("device_private() for hax_vm failed\n");
-        return ENODEV;
+        return;
     }
     sc->sc_dev = self;
     hax_vm_sc_self = self;
@@ -655,7 +655,7 @@ hax_vcpu_attach(device_t parent, device_t self, void *aux)
     sc = device_private(self);
     if (sc == NULL) {
         hax_error("device_private() for hax_vcpu failed\n");
-        return ENODEV;
+        return;
     }
     sc->sc_dev = self;
     hax_vcpu_sc_self = self;
