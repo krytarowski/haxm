@@ -122,7 +122,7 @@ void * hax_map_user_pages(hax_memdesc_user *memdesc, uint64_t uva_offset,
 {
     struct vm_map *map;
     struct vm_page *page;
-    vaddr_t uva, va, end_va;
+    vaddr_t uva, va, va2, end_va;
     vaddr_t kva;
     paddr_t pa;
     int err;
@@ -147,10 +147,10 @@ void * hax_map_user_pages(hax_memdesc_user *memdesc, uint64_t uva_offset,
 
     kva = uvm_km_alloc(kernel_map, size, PAGE_SIZE, UVM_KMF_VAONLY|UVM_KMF_WAITVA);
 
-    for (va = uva, end_va = uva + size; va < end_va; va += PAGE_SIZE) {
+    for (va = uva, end_va = uva + size, va2 = kva; va < end_va; va += PAGE_SIZE, va2 += PAGE_SIZE) {
         if (!pmap_extract(map->pmap, va, &pa))
             break;
-        pmap_kenter_pa(va, pa, VM_PROT_READ | VM_PROT_WRITE, PMAP_WIRED);
+        pmap_kenter_pa(va2, pa, VM_PROT_READ | VM_PROT_WRITE, PMAP_WIRED);
     }
     pmap_update(pmap_kernel());
 
