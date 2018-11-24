@@ -80,7 +80,7 @@ int hax_setup_vcpumem(struct hax_vcpu_mem *mem, uint64_t uva, uint32_t size,
     struct vm_map *map;
     int err = 0;
     struct hax_vcpu_mem_hinfo_t *hinfo = NULL;
-    vaddr_t kva;
+    vaddr_t kva, kva2;
     vaddr_t va, end_va;
     paddr_t pa;
     unsigned offset;
@@ -118,10 +118,10 @@ int hax_setup_vcpumem(struct hax_vcpu_mem *mem, uint64_t uva, uint32_t size,
     kva = uvm_km_alloc(kernel_map, size, PAGE_SIZE,
                        UVM_KMF_VAONLY|UVM_KMF_WAITVA);
 
-    for (va = uva, end_va = uva + size; va < end_va; va += PAGE_SIZE, kva += PAGE_SIZE) {
+    for (va = uva, end_va = uva + size, kva2 = kva; va < end_va; va += PAGE_SIZE, kva2 += PAGE_SIZE) {
         if (!pmap_extract(map->pmap, va, &pa))
             break;
-        pmap_kenter_pa(kva, pa, VM_PROT_READ | VM_PROT_WRITE, PMAP_WIRED);
+        pmap_kenter_pa(kva2, pa, VM_PROT_READ | VM_PROT_WRITE, PMAP_WIRED);
     }
 
     pmap_update(pmap_kernel());
