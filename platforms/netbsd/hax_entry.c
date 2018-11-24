@@ -47,6 +47,14 @@
 
 static int hax_cmajor = 220, hax_bmajor = -1;
 
+extern struct cfdriver hax_vm_cd;
+extern struct cfdriver hax_vcpu_cd;
+extern struct cfattach hax_vm_ca;
+extern struct cfattach hax_vcpu_ca;
+
+static int hax_driver_init(void);
+static int hax_driver_exit(void);
+
 dev_type_open(hax_dev_open);
 dev_type_close(hax_dev_close);
 dev_type_ioctl(hax_dev_ioctl);
@@ -128,59 +136,6 @@ int hax_dev_ioctl(dev_t self __unused, u_long cmd, void *data, int flag,
     return ret;
 }
 
-static int hax_driver_init(void)
-{
-    struct cpu_info *ci;
-    CPU_INFO_ITERATOR cii;
-    struct schedstate_percpu *spc;
-    int i, err;
-    vaddr_t cr4;
-
-    // Initialization
-    max_cpus = 0;
-
-    ci = NULL;
-
-    for (CPU_INFO_FOREACH(cii, ci)) {
-        ++max_cpus;
-        if (!ISSET(ci->ci_schedstate.spc_flags, SPCF_OFFLINE)) {
-            cpu_online_map |= __BIT(ci->ci_cpuid);
-        }
-    }
-
-    cr4 = rcr4();
-    cr4 |= CR4_VMXE;
-    lcr4(cr4);
-
-    if (hax_module_init() < 0) {
-        hax_error("Failed to initialize HAXM module\n");
-        return -EAGAIN;
-    }
-
-    err = devsw_attach(HAX_DEVICE_NAME, NULL, &hax_bmajor, &hax_dev_cdevsw,
-                       &hax_cmajor);
-    if (err) {
-        hax_error("Failed to register HAXM device\n");
-        hax_module_exit();
-        return ENXIO;
-    }
-
-    hax_info("Created HAXM device\n");
-    return 0;
-}
-
-static int hax_driver_exit(void)
-{
-    if (hax_module_exit() < 0) {
-        hax_error("Failed to finalize HAXM module\n");
-    }
-
-    devsw_detach(NULL, &hax_dev_cdevsw);
-    hax_info("Removed HAXM device\n");
-
-    return 0;
-}
-
 MODULE(MODULE_CLASS_MISC, hax_driver, NULL);
 
 static const struct cfiattrdata haxbus_iattrdata = {
@@ -248,4 +203,141 @@ hax_driver_modcmd(modcmd_t cmd, void *arg __unused)
     default:
         return ENOTTY;
     }
+}
+
+static int hax_driver_init(void)
+{
+    struct cpu_info *ci;
+    CPU_INFO_ITERATOR cii;
+    struct schedstate_percpu *spc;
+    int i, err;
+    vaddr_t cr4;
+
+    // Initialization
+    max_cpus = 0;
+
+    ci = NULL;
+
+    for (CPU_INFO_FOREACH(cii, ci)) {
+        ++max_cpus;
+        if (!ISSET(ci->ci_schedstate.spc_flags, SPCF_OFFLINE)) {
+            cpu_online_map |= __BIT(ci->ci_cpuid);
+        }
+    }
+
+#if 0
+    cr4 = rcr4();
+    cr4 |= CR4_VMXE;
+    lcr4(cr4);
+#endif
+
+    // Register hax_vm
+    err = config_cfdriver_attach(&hax_vm_cd);
+    if (err) {
+        hax_error("Unable to register cfdriver hax_vm\n");
+        return err;
+    }
+
+    err = config_cfattach_attach(hax_vm_cd.cd_name, &hax_vm_ca);
+    if (err) {
+        hax_error("Unable to register cfattch hax_vm\n");
+        config_cfdriver_detach(&hax_vm_cd);
+        return err;
+    }
+
+    err = config_cfdata_attach(hax_vm_cfdata, 1);
+    if (err) {
+        hax_error("Unable to register cfdata hax_vm\n");
+        config_cfattach_detach(hax_vm_cd.cd_name, &hax_vm_ca);
+        config_cfdriver_detach(&hax_vm_cd);
+        return err;
+    }
+
+    // Register hax_vcpu
+    err = config_cfdriver_attach(&hax_vcpu_cd);
+    if (err) {
+        hax_error("Unable to register cfdriver hax_vcpu\n");
+        config_cfattach_detach(hax_vm_cd.cd_name, &hax_vm_ca);
+        config_cfdriver_detach(&hax_vm_cd);
+        return err;
+    }
+
+    err = config_cfattach_attach(hax_vcpu_cd.cd_name, &hax_vcpu_ca);
+    if (err) {
+        hax_error("Unable to register cfattch hax_vcpu\n");
+        config_cfdriver_detach(&hax_vcpu_cd);
+        config_cfattach_detach(hax_vm_cd.cd_name, &hax_vm_ca);
+        config_cfdriver_detach(&hax_vm_cd);
+        return err;
+    }
+
+    err = config_cfdata_attach(hax_vcpu_cfdata, 1);
+    if (err) {
+        hax_error("Unable to register cfdata hax_vcpu\n");
+        config_cfattach_detach(hax_vcpu_cd.cd_name, &hax_vcpu_ca);
+        config_cfdriver_detach(&hax_vcpu_cd);
+        config_cfattach_detach(hax_vm_cd.cd_name, &hax_vm_ca);
+        config_cfdriver_detach(&hax_vm_cd);
+        return err;
+    }
+
+    // Register HAXM
+    err = devsw_attach(HAX_DEVICE_NAME, NULL, &hax_bmajor, &hax_dev_cdevsw,
+                       &hax_cmajor);
+    if (err) {
+        hax_error("Failed to register HAXM device\n");
+        config_cfattach_detach(hax_vm_cd.cd_name, &hax_vm_ca);
+        config_cfdriver_detach(&hax_vm_cd);
+        config_cfattach_detach(hax_vm_cd.cd_name, &hax_vm_ca);
+        config_cfdriver_detach(&hax_vm_cd);
+        return ENXIO;
+    }
+
+    config_attach_pseudo(hax_vm_cfdata);
+
+    config_attach_pseudo(hax_vcpu_cfdata);
+
+    // Initialize HAXM
+
+    if (hax_module_init() < 0) {
+        hax_error("Failed to initialize HAXM module\n");
+        return ENXIO;
+    }
+
+    hax_info("Created HAXM device\n");
+    return 0;
+}
+
+static int hax_driver_exit(void)
+{
+    int err;
+
+    if (hax_module_exit() < 0) {
+        hax_error("Failed to finalize HAXM module\n");
+    }
+
+    // hax_vcpu
+    err = config_cfdata_detach(hax_vcpu_cfdata);
+    if (err) {
+        hax_error("Unable to deregister cfattch hax_vcpu\n");
+        return err;
+    }
+    config_cfattach_detach(hax_vcpu_cd.cd_name, &hax_vcpu_ca);
+    config_cfdriver_detach(&hax_vcpu_cd);
+
+    // hax_vm
+    err = config_cfdata_detach(hax_vm_cfdata);
+    if (err) {
+        hax_error("Unable to deregister cfattch hax_vm\n");
+        return err;
+    }
+    config_cfattach_detach(hax_vm_cd.cd_name, &hax_vm_ca);
+    config_cfdriver_detach(&hax_vm_cd);
+
+    // HAX
+
+    devsw_detach(NULL, &hax_dev_cdevsw);
+    hax_info("Removed HAXM device\n");
+
+    return 0;
 }
