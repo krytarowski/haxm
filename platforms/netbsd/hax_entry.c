@@ -115,6 +115,7 @@ hax_vm_attach(device_t parent, device_t self, void *aux)
         return;
     }
     sc->sc_dev = self;
+    sc->vm = NULL;
     self_hax_vm_softc[self_hax_vm_softc_no++] = self;
 
     if (!pmf_device_register(self, NULL, NULL))
@@ -154,6 +155,7 @@ hax_vcpu_attach(device_t parent, device_t self, void *aux)
         return;
     }
     sc->sc_dev = self;
+    sc->vcpu = NULL;
     self_hax_vcpu_softc[self_hax_vcpu_softc_no++] = self;
 
     if (!pmf_device_register(self, NULL, NULL))
