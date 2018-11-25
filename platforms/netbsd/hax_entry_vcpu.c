@@ -93,7 +93,7 @@ int hax_vcpu_open(dev_t self, int flag __unused, int mode __unused,
 
     cvcpu = hax_get_vcpu(vcpu->vm->id, vcpu->id, 1);
 
-    hax_log_level(HAX_LOGD, "HAX vcpu open called\n");
+    hax_log_level(HAX_LOGD, "HAX VM%02d vcpu%02d open called\n", vcpu->vm->id, vcpu->id);
     if (!cvcpu)
         return ENODEV;
 
@@ -120,7 +120,7 @@ int hax_vcpu_close(dev_t self, int flag __unused, int mode __unused,
     vcpu = sc->vcpu;
     cvcpu = hax_get_vcpu(vcpu->vm->id, vcpu->id, 1);
 
-    hax_log_level(HAX_LOGD, "HAX vcpu close called\n");
+    hax_log_level(HAX_LOGD, "HAX VM%02d vcpu%02d close called\n", vcpu->vm->id, vcpu->id);
     if (!cvcpu) {
         hax_error("Failed to find the vcpu, is it closed already?\n");
         return 0;
