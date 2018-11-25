@@ -42,9 +42,7 @@
 #include "../../include/hax_interface.h"
 #include "../../include/hax_release_ver.h"
 #include "../../core/include/hax_core_interface.h"
-#include "../../core/include/config.h" // HAX_MAX_VCPUS
-
-#define HAX_MAX_VMS 8
+#include "../../core/include/config.h"
 
 #define HAX_DEVICE_NAME "HAX"
 #define HAX_VM_DEVICE_NAME "hax_vm"
@@ -68,13 +66,6 @@ static int hax_vm_match(device_t, cfdata_t, void *);
 static void hax_vm_attach(device_t, device_t, void *);
 static int hax_vm_detach(device_t, int);
 
-struct hax_vm_netbsd_t;
-
-struct hax_vm_softc {
-    device_t sc_dev;
-    struct hax_vm_netbsd_t *vm;
-};
-
 struct hax_vm_softc self_hax_vm_softc[HAX_MAX_VMS];
 static int self_hax_vm_softc_no;
 
@@ -84,13 +75,6 @@ CFATTACH_DECL_NEW(hax_vm, sizeof(struct hax_vm_softc),
 static int hax_vcpu_match(device_t, cfdata_t, void *);
 static void hax_vcpu_attach(device_t, device_t, void *);
 static int hax_vcpu_detach(device_t, int);
-
-struct hax_vcpu_netbsd_t;
-
-struct hax_vcpu_softc {
-    device_t sc_dev;
-    struct hax_vcpu_netbsd_t *vcpu;
-};
 
 struct hax_vcpu_softc self_hax_vcpu_softc[HAX_MAX_VMS * HAX_MAX_VCPUS];
 static int self_hax_vcpu_softc_no;

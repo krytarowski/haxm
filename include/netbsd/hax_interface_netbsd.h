@@ -79,4 +79,20 @@
 
 #define is_compatible() 0
 
+struct hax_vm_netbsd_t;
+
+struct hax_vm_softc {
+    device_t sc_dev;
+    struct hax_vm_netbsd_t *vm;
+};
+
+struct hax_vcpu_netbsd_t;
+
+struct hax_vcpu_softc {
+    device_t sc_dev;
+    struct hax_vcpu_netbsd_t *vcpu;
+};
+
+#define HAX_MAX_VMS 8
+
 #endif  // HAX_NETBSD_HAX_INTERFACE_NETBSD_H_
