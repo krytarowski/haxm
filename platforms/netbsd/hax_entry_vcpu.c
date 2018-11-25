@@ -88,8 +88,8 @@ int hax_vcpu_open(dev_t self, int flag __unused, int mode __unused,
         return ENODEV;
     }
 
-    assert(vcpu->vm->id == vm_id);
-    assert(vcpu->id == vcpu_id);
+    hax_assert(vcpu->vm->id == vm_id);
+    hax_assert(vcpu->id == vcpu_id);
 
     cvcpu = hax_get_vcpu(vcpu->vm->id, vcpu->id, 1);
 
