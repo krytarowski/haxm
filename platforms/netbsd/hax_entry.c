@@ -48,8 +48,8 @@
 #define HAX_VM_DEVICE_NAME "hax_vm"
 #define HAX_VCPU_DEVICE_NAME "hax_vcpu"
 
-#define unit2vmmid(u)  (u / 16)
-#define unit2vcpuid(u) (u % 16)
+#define unit2vmmid(u)  (__SHIFTOUT(u, __BITS(4,6)))
+#define unit2vcpuid(u) (__SHIFTOUT(u, __BITS(0,3)))
 
 static int hax_cmajor = 220, hax_bmajor = -1;
 static int hax_vm_cmajor = 222, hax_vm_bmajor = -1;
@@ -96,8 +96,7 @@ hax_vm_attach(device_t parent, device_t self, void *aux)
     sc->sc_dev = self;
     sc->vm = NULL;
 
-    snprintf(self->dv_xname, sizeof self->dv_xname, "hax_vm/vm%02d",
-             minor2vcpuvmmid(unit));
+    snprintf(self->dv_xname, sizeof self->dv_xname, "hax_vm/vm%02d", unit);
 
     if (!pmf_device_register(self, NULL, NULL))
         aprint_error_dev(self, "couldn't establish power handler\n");
