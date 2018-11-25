@@ -367,6 +367,7 @@ init_err1:
         config_cfdata_detach(hax_vm_cfdata);
         config_cfattach_detach(hax_vm_cd.cd_name, &hax_vm_ca);
         config_cfdriver_detach(&hax_vm_cd);
+
         hax_info("Removed HAXM device\n");
         return 0;
     }
