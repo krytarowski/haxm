@@ -95,4 +95,19 @@ struct hax_vcpu_softc {
 
 #define HAX_MAX_VMS 8
 
+struct vm_t;
+
+typedef struct hax_vm_netbsd_t {
+    struct vm_t *cvm;
+    int id;
+} hax_vm_netbsd_t;
+
+struct vcpu_t;
+
+typedef struct hax_vcpu_netbsd_t {
+    struct vcpu_t *cvcpu;
+    struct hax_vm_netbsd_t *vm;
+    int id;
+} hax_vcpu_netbsd_t;
+
 #endif  // HAX_NETBSD_HAX_INTERFACE_NETBSD_H_

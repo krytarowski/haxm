@@ -39,29 +39,24 @@
 
 #include "../../core/include/hax_core_interface.h"
 
-static int hax_vm_cmajor = 222, hax_vm_bmajor = -1;
-
-#define HAX_VM_DEVFS_FMT    "hax_vm/vm%02d"
-
-typedef struct hax_vm_netbsd_t {
-    struct vm_t *cvm;
-    int id;
-    struct cdevsw dev;
-    char *devname;
-} hax_vm_netbsd_t;
-
-struct hax_vm_softc {
-    device_t sc_dev;
-    struct hax_vm_netbsd_t *vm;
-};
-
-device_t hax_vm_sc_self[HAX_MAX_VMS];
-
 dev_type_open(hax_vm_open);
 dev_type_close(hax_vm_close);
 dev_type_ioctl(hax_vm_ioctl);
 
-/* VM operations */
+static struct cdevsw hax_vm_cdevsw = {
+    .d_open = hax_vm_open,
+    .d_close = hax_vm_close,
+    .d_read = noread,
+    .d_write = nowrite,
+    .d_ioctl = hax_vm_ioctl,
+    .d_stop = nostop,
+    .d_tty = notty,
+    .d_poll = nopoll,
+    .d_mmap = nommap,
+    .d_kqfilter = nokqfilter,
+    .d_discard = nodiscard,
+    .d_flag = D_OTHER
+};
 
 int hax_vm_open(dev_t self, int flag __unused, int mode __unused,
           struct lwp *l __unused)

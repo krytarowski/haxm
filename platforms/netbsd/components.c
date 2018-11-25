@@ -39,17 +39,6 @@
 
 #include "../../core/include/hax_core_interface.h"
 
-typedef struct hax_vm_netbsd_t {
-    struct vm_t *cvm;
-    int id;
-} hax_vm_netbsd_t;
-
-typedef struct hax_vcpu_netbsd_t {
-    struct vcpu_t *cvcpu;
-    struct hax_vm_netbsd_t *vm;
-    int id;
-} hax_vcpu_netbsd_t;
-
 extern struct hax_vm_softc self_hax_vm_softc[HAX_MAX_VMS];
 extern struct hax_vcpu_softc self_hax_vcpu_softc[HAX_MAX_VMS * HAX_MAX_VCPUS];
 
