@@ -45,7 +45,7 @@ dev_type_open(hax_vm_open);
 dev_type_close(hax_vm_close);
 dev_type_ioctl(hax_vm_ioctl);
 
-static struct cdevsw hax_vm_cdevsw = {
+struct cdevsw hax_vm_cdevsw = {
     .d_open = hax_vm_open,
     .d_close = hax_vm_close,
     .d_read = noread,

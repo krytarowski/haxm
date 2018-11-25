@@ -45,7 +45,7 @@ dev_type_open(hax_vcpu_open);
 dev_type_close(hax_vcpu_close);
 dev_type_ioctl(hax_vcpu_ioctl);
 
-static struct cdevsw hax_vcpu_cdevsw = {
+struct cdevsw hax_vcpu_cdevsw = {
     .d_open = hax_vcpu_open,
     .d_close = hax_vcpu_close,
     .d_read = noread,

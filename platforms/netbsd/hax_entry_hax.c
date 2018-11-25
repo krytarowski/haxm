@@ -50,7 +50,7 @@ dev_type_open(hax_open);
 dev_type_close(hax_close);
 dev_type_ioctl(hax_ioctl);
 
-static struct cdevsw hax_cdevsw = {
+struct cdevsw hax_cdevsw = {
     .d_open = hax_open,
     .d_close = hax_close,
     .d_read = noread,
