@@ -5,6 +5,9 @@ KMOD=	intel-haxm
 # toplevel
 SRCS+=	components.c
 SRCS+=	hax_entry.c
+SRCS+=	hax_entry_hax.c
+SRCS+=	hax_entry_vcpu.c
+SRCS+=	hax_entry_vm.c
 SRCS+=	hax_event.c
 SRCS+=	hax_host_mem.c
 SRCS+=	hax_mem_alloc.c

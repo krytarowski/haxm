@@ -66,7 +66,7 @@ struct hax_vm_softc {
     struct hax_vm_netbsd_t *vm;
 };
 
-static device_t hax_vm_sc_self;
+static device_t hax_vm_sc_self[HAX_MAX_VMS];
 
 extern struct cfdriver hax_vm_cd;
 
