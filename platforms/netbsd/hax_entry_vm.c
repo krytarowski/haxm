@@ -66,6 +66,7 @@ int hax_vm_open(dev_t self, int flag __unused, int mode __unused,
     struct hax_vm_softc *sc;
     struct vm_t *cvm;
     struct hax_vm_netbsd_t *vm;
+    int unit;
     int ret;
 
     sc = device_lookup_private(&hax_vm_cd, minor(self));
@@ -75,6 +76,16 @@ int hax_vm_open(dev_t self, int flag __unused, int mode __unused,
     }
 
     vm = sc->vm;
+
+    unit = device_unit(sc->sc_dev);
+
+    if (!vm) {
+        hax_error("HAX VM 'hax_vm/vm%02d' is not ready\n", unit);
+        return ENODEV;
+    }
+
+    assert(unit == vm->id);
+
     cvm = hax_get_vm(vm->id, 1);
     if (!cvm)
         return ENODEV;

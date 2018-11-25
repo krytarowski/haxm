@@ -69,13 +69,28 @@ int hax_vcpu_open(dev_t self, int flag __unused, int mode __unused,
     struct vcpu_t *cvcpu;
     struct hax_vcpu_netbsd_t *vcpu;
     int ret;
+    int unit, vm_id, vcpu_id;
 
     sc = device_lookup_private(&hax_vcpu_cd, minor(self));
     if (sc == NULL) {
         hax_error("device_lookup_private() for hax_vcpu failed\n");
         return ENODEV;
     }
+
     vcpu = sc->vcpu;
+
+    unit = device_unit(sc->sc_dev);
+    vm_id = unit2vmmid(unit);
+    vcpu_id = unit2vcpuid(unit);
+
+    if (!vcpu) {
+        hax_error("HAX VM 'hax_vm%02d/vcpu%02d' is not ready\n", vm_id, vcpu_id);
+        return ENODEV;
+    }
+
+    assert(vcpu->vm->id == vm_id);
+    assert(vcpu->id == vcpu_id);
+
     cvcpu = hax_get_vcpu(vcpu->vm->id, vcpu->id, 1);
 
     hax_log_level(HAX_LOGD, "HAX vcpu open called\n");
