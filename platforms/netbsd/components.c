@@ -111,7 +111,7 @@ int hax_vcpu_destroy_host(struct vcpu_t *cvcpu, void *vcpu_host)
 
     vcpu = (hax_vcpu_netbsd_t *)vcpu_host;
 
-    minor = vcpu->vm->id * HAX_MAX_VMS + vcpu->id;
+    minor = vcpu->vm->id * HAX_MAX_VCPUS + vcpu->id;
     sc = device_lookup_private(&hax_vcpu_cd, minor);
     if (!sc) {
         hax_error("device lookup for hax_vcpu failed (minor %u)\n", minor);
