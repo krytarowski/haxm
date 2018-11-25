@@ -66,18 +66,12 @@ static int hax_vm_match(device_t, cfdata_t, void *);
 static void hax_vm_attach(device_t, device_t, void *);
 static int hax_vm_detach(device_t, int);
 
-struct hax_vm_softc self_hax_vm_softc[HAX_MAX_VMS];
-static int self_hax_vm_softc_no;
-
 CFATTACH_DECL_NEW(hax_vm, sizeof(struct hax_vm_softc),
         hax_vm_match, hax_vm_attach, hax_vm_detach, NULL);
 
 static int hax_vcpu_match(device_t, cfdata_t, void *);
 static void hax_vcpu_attach(device_t, device_t, void *);
 static int hax_vcpu_detach(device_t, int);
-
-struct hax_vcpu_softc self_hax_vcpu_softc[HAX_MAX_VMS * HAX_MAX_VCPUS];
-static int self_hax_vcpu_softc_no;
 
 CFATTACH_DECL_NEW(hax_vcpu, sizeof(struct hax_vcpu_softc),
         hax_vcpu_match, hax_vcpu_attach, hax_vcpu_detach, NULL);
@@ -100,7 +94,6 @@ hax_vm_attach(device_t parent, device_t self, void *aux)
     }
     sc->sc_dev = self;
     sc->vm = NULL;
-    self_hax_vm_softc[self_hax_vm_softc_no++] = self;
 
     if (!pmf_device_register(self, NULL, NULL))
         aprint_error_dev(self, "couldn't establish power handler\n");
@@ -117,7 +110,6 @@ hax_vm_detach(device_t self, int flags)
         return ENODEV;
     }
     pmf_device_deregister(self);
-    self_hax_vm_softc[--self_hax_vm_softc_no] = NULL;
 
     return 0;
 }
@@ -140,7 +132,6 @@ hax_vcpu_attach(device_t parent, device_t self, void *aux)
     }
     sc->sc_dev = self;
     sc->vcpu = NULL;
-    self_hax_vcpu_softc[self_hax_vcpu_softc_no++] = self;
 
     if (!pmf_device_register(self, NULL, NULL))
         aprint_error_dev(self, "couldn't establish power handler\n");
@@ -157,7 +148,6 @@ hax_vcpu_detach(device_t self, int flags)
         return ENODEV;
     }
     pmf_device_deregister(self);
-    self_hax_vcpu_softc[--self_hax_vcpu_softc_no] = NULL;
 
     return 0;
 }
