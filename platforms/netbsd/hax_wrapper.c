@@ -43,7 +43,7 @@
 #include "../../core/include/hax_core_interface.h"
 #include "../../core/include/ia32.h"
 
-int default_hax_log_level = 3;
+int default_hax_log_level = 2; // HAX_LOG_DEFAULT
 int max_cpus;
 hax_cpumap_t cpu_online_map;
 
