@@ -97,7 +97,7 @@ hax_vm_attach(device_t parent, device_t self, void *aux)
     sc->vm = NULL;
 
     snprintf(self->dv_xname, sizeof self->dv_xname, "hax_vm/vm%02",
-             minor2vcpuvmmid(minor));
+             minor2vcpuvmmid(unit));
 
     if (!pmf_device_register(self, NULL, NULL))
         aprint_error_dev(self, "couldn't establish power handler\n");
@@ -142,7 +142,7 @@ hax_vcpu_attach(device_t parent, device_t self, void *aux)
     sc->vcpu = NULL;
 
     snprintf(self->dv_xname, sizeof self->dv_xname, "hax_vm%02/vcpu%02",
-             minor2vcpuvmmid(minor), minor2vcpuid(minor));
+             minor2vcpuvmmid(unit), minor2vcpuid(unit));
 
     if (!pmf_device_register(self, NULL, NULL))
         aprint_error_dev(self, "couldn't establish power handler\n");
