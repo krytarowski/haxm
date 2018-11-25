@@ -84,7 +84,7 @@ int hax_vm_open(dev_t self, int flag __unused, int mode __unused,
         return ENODEV;
     }
 
-    assert(unit == vm->id);
+    hax_assert(unit == vm->id);
 
     cvm = hax_get_vm(vm->id, 1);
     if (!cvm)
