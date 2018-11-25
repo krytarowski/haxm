@@ -64,6 +64,118 @@ extern struct cfdriver hax_vcpu_cd;
 extern struct cfattach hax_vm_ca;
 extern struct cfattach hax_vcpu_ca;
 
+static int hax_vm_match(device_t, cfdata_t, void *);
+static void hax_vm_attach(device_t, device_t, void *);
+static int hax_vm_detach(device_t, int);
+
+struct hax_vm_netbsd_t;
+
+struct hax_vm_softc {
+    device_t sc_dev;
+    struct hax_vm_netbsd_t *vm;
+};
+
+struct hax_vm_softc self_hax_vm_softc[HAX_MAX_VMS];
+static int self_hax_vm_softc_no;
+
+CFATTACH_DECL_NEW(hax_vm, sizeof(struct hax_vm_softc),
+        hax_vm_match, hax_vm_attach, hax_vm_detach, NULL);
+
+static int hax_vcpu_match(device_t, cfdata_t, void *);
+static void hax_vcpu_attach(device_t, device_t, void *);
+static int hax_vcpu_detach(device_t, int);
+
+struct hax_vcpu_netbsd_t;
+
+struct hax_vcpu_softc {
+    device_t sc_dev;
+    struct hax_vcpu_netbsd_t *vcpu;
+};
+
+struct hax_vcpu_softc self_hax_vcpu_softc[HAX_MAX_VMS * HAX_MAX_VCPUS];
+static int self_hax_vcpu_softc_no;
+
+CFATTACH_DECL_NEW(hax_vcpu, sizeof(struct hax_vcpu_softc),
+        hax_vcpu_match, hax_vcpu_attach, hax_vcpu_detach, NULL);
+
+static int
+hax_vm_match(device_t parent, cfdata_t match, void *aux)
+{
+    return 1;
+}
+
+static void
+hax_vm_attach(device_t parent, device_t self, void *aux)
+{
+    struct hax_vm_softc *sc;
+
+    sc = device_private(self);
+    if (sc == NULL) {
+        hax_error("device_private() for hax_vm failed\n");
+        return;
+    }
+    sc->sc_dev = self;
+    self_hax_vm_softc[self_hax_vm_softc_no++] = self;
+
+    if (!pmf_device_register(self, NULL, NULL))
+        aprint_error_dev(self, "couldn't establish power handler\n");
+}
+
+static int
+hax_vm_detach(device_t self, int flags)
+{
+    struct hax_vm_softc *sc;
+
+    sc = device_private(self);
+    if (sc == NULL) {
+        hax_error("device_private() for hax_vm failed\n");
+        return ENODEV;
+    }
+    pmf_device_deregister(self);
+    self_hax_vm_softc[--self_hax_vm_softc_no] = NULL;
+
+    return 0;
+}
+
+static int
+hax_vcpu_match(device_t parent, cfdata_t match, void *aux)
+{
+    return 1;
+}
+
+static void
+hax_vcpu_attach(device_t parent, device_t self, void *aux)
+{
+    struct hax_vcpu_softc *sc;
+
+    sc = device_private(self);
+    if (sc == NULL) {
+        hax_error("device_private() for hax_vcpu failed\n");
+        return;
+    }
+    sc->sc_dev = self;
+    self_hax_vcpu_softc[self_hax_vcpu_softc_no++] = self;
+
+    if (!pmf_device_register(self, NULL, NULL))
+        aprint_error_dev(self, "couldn't establish power handler\n");
+}
+
+static int
+hax_vcpu_detach(device_t self, int flags)
+{
+    struct hax_vcpu_softc *sc;
+
+    sc = device_private(self);
+    if (sc == NULL) {
+        hax_error("device_private() for hax_vm failed\n");
+        return ENODEV;
+    }
+    pmf_device_deregister(self);
+    self_hax_vcpu_softc[--self_hax_vcpu_softc_no] = NULL;
+
+    return 0;
+}
+
 static const struct cfiattrdata haxbus_iattrdata = {
     "haxbus", 0, { { NULL, NULL, 0 },}
 };
