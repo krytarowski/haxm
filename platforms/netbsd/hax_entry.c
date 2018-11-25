@@ -48,6 +48,9 @@
 #define HAX_VM_DEVICE_NAME "hax_vm"
 #define HAX_VCPU_DEVICE_NAME "hax_vcpu"
 
+#define minor2vcpuvmmid(dev)  (((minor(dev) >> 12) & 0xfff) - 1)
+#define minor2vcpuid(dev) (minor(dev) & 0xfff)
+
 static int hax_cmajor = 220, hax_bmajor = -1;
 static int hax_vm_cmajor = 222, hax_vm_bmajor = -1;
 static int hax_vcpu_cmajor = 221, hax_vcpu_bmajor = -1;
@@ -80,14 +83,21 @@ static void
 hax_vm_attach(device_t parent, device_t self, void *aux)
 {
     struct hax_vm_softc *sc;
+    int unit;
 
     sc = device_private(self);
     if (sc == NULL) {
         hax_error("device_private() for hax_vm failed\n");
         return;
     }
+
+    unit = device_unit(sc->sc_dev);
+
     sc->sc_dev = self;
     sc->vm = NULL;
+
+    snprintf(self->dv_xname, sizeof self->dv_xname, "hax_vm/vm%02",
+             minor2vcpuvmmid(minor));
 
     if (!pmf_device_register(self, NULL, NULL))
         aprint_error_dev(self, "couldn't establish power handler\n");
@@ -118,14 +128,21 @@ static void
 hax_vcpu_attach(device_t parent, device_t self, void *aux)
 {
     struct hax_vcpu_softc *sc;
+    int unit;
 
     sc = device_private(self);
     if (sc == NULL) {
         hax_error("device_private() for hax_vcpu failed\n");
         return;
     }
+
+    unit = device_unit(sc->sc_dev);
+
     sc->sc_dev = self;
     sc->vcpu = NULL;
+
+    snprintf(self->dv_xname, sizeof self->dv_xname, "hax_vm%02/vcpu%02",
+             minor2vcpuvmmid(minor), minor2vcpuid(minor));
 
     if (!pmf_device_register(self, NULL, NULL))
         aprint_error_dev(self, "couldn't establish power handler\n");
