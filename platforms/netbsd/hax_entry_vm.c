@@ -92,7 +92,7 @@ int hax_vm_open(dev_t self, int flag __unused, int mode __unused,
 
     ret = hax_vm_core_open(cvm);
     hax_put_vm(cvm);
-    hax_log_level(HAX_LOGI, "Open VM\n");
+    hax_log_level(HAX_LOGI, "Open VM%02d\n", vm->id);
     return ret;
 }
 
@@ -113,7 +113,7 @@ int hax_vm_close(dev_t self __unused, int flag __unused, int mode __unused,
     vm = sc->vm;
     cvm = hax_get_vm(vm->id, 1);
 
-    hax_log_level(HAX_LOGI, "Close VM\n");
+    hax_log_level(HAX_LOGI, "Close VM%02d\n", vm->id);
     if (cvm) {
         /* put the ref get just now */
         hax_put_vm(cvm);

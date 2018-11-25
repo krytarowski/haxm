@@ -195,28 +195,58 @@ void hax_smp_mb(void)
 /* Compare-Exchange */
 bool hax_cmpxchg32(uint32_t old_val, uint32_t new_val, volatile uint32_t *addr)
 {
-    return atomic_cas_32(addr, old_val, new_val) == old_val;
+    hax_atomic_t rv;
+
+    membar_exit();
+    rv = atomic_cas_32(addr, old_val, new_val);
+    membar_enter();
+
+    return rv == old_val;
 }
 
 bool hax_cmpxchg64(uint64_t old_val, uint64_t new_val, volatile uint64_t *addr)
 {
-    return atomic_cas_64(addr, old_val, new_val) == old_val;
+    hax_atomic_t rv;
+
+    membar_exit();
+    rv = atomic_cas_64(addr, old_val, new_val);
+    membar_enter();
+
+    return rv == old_val;
 }
 
 /* Atomics */
 hax_atomic_t hax_atomic_add(volatile hax_atomic_t *atom, uint32_t value)
 {
-    return atomic_add_32_nv(atom, value) - value;
+    hax_atomic_t rv;
+
+    membar_exit();
+    rv = atomic_add_32_nv(atom) - value;
+    membar_enter();
+
+    return rv;
 }
 
 hax_atomic_t hax_atomic_inc(volatile hax_atomic_t *atom)
 {
-    return atomic_inc_32_nv(atom) - 1;
+    hax_atomic_t rv;
+
+    membar_exit();
+    rv = atomic_inc_32_nv(atom) - 1;
+    membar_enter();
+
+    return rv;
 }
 
 hax_atomic_t hax_atomic_dec(volatile hax_atomic_t *atom)
 {
-    return atomic_dec_32_nv(atom) + 1;
+    hax_atomic_t rv;
+
+    membar_exit();
+    rv = atomic_dec_32_nv(atom) + 1;
+    membar_enter();
+
+    return rv;
 }
 
 int hax_test_and_set_bit(int bit, uint64_t *memory)
