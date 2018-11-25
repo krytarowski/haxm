@@ -39,6 +39,8 @@
 
 #include "../../core/include/hax_core_interface.h"
 
+extern struct cfdriver hax_vcpu_cd;
+
 dev_type_open(hax_vcpu_open);
 dev_type_close(hax_vcpu_close);
 dev_type_ioctl(hax_vcpu_ioctl);

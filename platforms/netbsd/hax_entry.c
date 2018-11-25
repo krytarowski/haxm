@@ -273,7 +273,7 @@ haxm_modcmd(modcmd_t cmd, void *arg __unused)
                        &hax_vm_cmajor);
         if (err) {
             hax_error("Failed to register HAXM VM device\n");
-            goto init_err8:
+            goto init_err8;
         }
         err = devsw_attach(HAX_VCPU_DEVICE_NAME, NULL, &hax_vcpu_bmajor, &hax_vcpu_cdevsw,
                        &hax_vcpu_cmajor);

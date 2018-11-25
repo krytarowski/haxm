@@ -106,16 +106,18 @@ int hax_vcpu_create_host(struct vcpu_t *cvcpu, void *vm_host, int vm_id,
 int hax_vcpu_destroy_host(struct vcpu_t *cvcpu, void *vcpu_host)
 {
     hax_vcpu_netbsd_t *vcpu;
+    struct hax_vcpu_softc *sc;
     devminor_t minor;
 
-    minor = vm_id * HAX_MAX_VMS + vcpu_id;
+    vcpu = (hax_vcpu_netbsd_t *)vcpu_host;
+
+    minor = vcpu->vm->id * HAX_MAX_VMS + vcpu->id;
     sc = device_lookup_private(&hax_vcpu_cd, minor);
     if (!sc) {
         hax_error("device lookup for hax_vcpu failed (minor %u)\n", minor);
         return -1;
     }
 
-    vcpu = (hax_vcpu_netbsd_t *)vcpu_host;
     hax_vcpu_destroy_netbsd(vcpu);
 
     sc->vcpu = NULL;
@@ -147,7 +149,7 @@ static void hax_vm_destroy_netbsd(hax_vm_netbsd_t *vm)
     sc = device_lookup_private(&hax_vm_cd, minor);
     if (!sc) {
         hax_error("device lookup for hax_vm failed (minor %u)\n", minor);
-        return -1;
+        return;
     }
 
     if (!vm)
