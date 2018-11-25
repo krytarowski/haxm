@@ -42,6 +42,9 @@
 #include "../../include/hax_interface.h"
 #include "../../include/hax_release_ver.h"
 #include "../../core/include/hax_core_interface.h"
+#include "../../core/include/config.h" // HAX_MAX_VCPUS
+
+#define HAX_MAX_VMS 8
 
 #define HAX_DEVICE_NAME "HAX"
 
@@ -210,8 +213,8 @@ static int hax_driver_init(void)
     struct cpu_info *ci;
     CPU_INFO_ITERATOR cii;
     struct schedstate_percpu *spc;
-    int i, err;
-    vaddr_t cr4;
+    int err;
+    size_t i;
 
     // Initialization
     max_cpus = 0;
@@ -224,12 +227,6 @@ static int hax_driver_init(void)
             cpu_online_map |= __BIT(ci->ci_cpuid);
         }
     }
-
-#if 0
-    cr4 = rcr4();
-    cr4 |= CR4_VMXE;
-    lcr4(cr4);
-#endif
 
     // Register hax_vm
     err = config_cfdriver_attach(&hax_vm_cd);
@@ -293,9 +290,11 @@ static int hax_driver_init(void)
         return ENXIO;
     }
 
-    config_attach_pseudo(hax_vm_cfdata);
+    for (i = 0; i < HAX_MAX_VMS; i++)
+        config_attach_pseudo(hax_vm_cfdata);
 
-    config_attach_pseudo(hax_vcpu_cfdata);
+    for (i = 0; i < (HAX_MAX_VMS * HAX_MAX_VCPUS); i++)
+        config_attach_pseudo(hax_vcpu_cfdata);
 
     // Initialize HAXM
 
