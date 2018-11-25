@@ -1,6 +1,6 @@
 S?=	/usr/src/sys
 
-KMOD=	intel-haxm
+KMOD=	haxm
 
 # toplevel
 SRCS+=	components.c
