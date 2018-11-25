@@ -39,28 +39,24 @@
 
 #include "../../core/include/hax_core_interface.h"
 
-static int hax_vcpu_cmajor = 221, hax_vcpu_bmajor = -1;
-
-#define HAX_VCPU_DEVFS_FMT  "hax_vm%02d/vcpu%02d"
-
-typedef struct hax_vcpu_netbsd_t {
-    struct vcpu_t *cvcpu;
-    struct hax_vm_netbsd_t *vm;
-    int id;
-    struct cdevsw dev;
-    char *devname;
-} hax_vcpu_netbsd_t;
-
-struct hax_vcpu_softc {
-    device_t sc_dev;
-    struct hax_vcpu_netbsd_t *vcpu;
-};
-
-static device_t hax_vcpu_sc_self;
-
 dev_type_open(hax_vcpu_open);
 dev_type_close(hax_vcpu_close);
 dev_type_ioctl(hax_vcpu_ioctl);
+
+static struct cdevsw hax_vcpu_cdevsw = {
+    .d_open = hax_vcpu_open,
+    .d_close = hax_vcpu_close,
+    .d_read = noread,
+    .d_write = nowrite,
+    .d_ioctl = hax_vcpu_ioctl,
+    .d_stop = nostop,
+    .d_tty = notty,
+    .d_poll = nopoll,
+    .d_mmap = nommap,
+    .d_kqfilter = nokqfilter,
+    .d_discard = nodiscard,
+    .d_flag = D_OTHER
+};
 
 /* VCPU operations */
 
