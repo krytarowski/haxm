@@ -221,7 +221,7 @@ hax_atomic_t hax_atomic_add(volatile hax_atomic_t *atom, uint32_t value)
     hax_atomic_t rv;
 
     membar_exit();
-    rv = atomic_add_32_nv(atom) - value;
+    rv = atomic_add_32_nv(atom, value) - value;
     membar_enter();
 
     return rv;
