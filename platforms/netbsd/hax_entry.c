@@ -56,12 +56,6 @@ extern struct cdevsw hax_cdevsw;
 extern struct cdevsw hax_vm_cdevsw;
 extern struct cdevsw hax_vcpu_cdevsw;
 
-extern struct cfdriver hax_vm_cd;
-extern struct cfdriver hax_vcpu_cd;
-
-extern struct cfattach hax_vm_ca;
-extern struct cfattach hax_vcpu_ca;
-
 static int hax_vm_match(device_t, cfdata_t, void *);
 static void hax_vm_attach(device_t, device_t, void *);
 static int hax_vm_detach(device_t, int);

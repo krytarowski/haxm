@@ -39,6 +39,9 @@
 
 #include "../../core/include/hax_core_interface.h"
 
+extern struct cfdriver hax_vm_cd;
+extern struct cfdriver hax_vcpu_cd;
+
 /* Component management */
 
 static hax_vcpu_netbsd_t* hax_vcpu_create_netbsd(struct vcpu_t *cvcpu,
