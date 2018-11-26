@@ -84,7 +84,7 @@ int hax_vcpu_open(dev_t self, int flag __unused, int mode __unused,
     vcpu_id = unit2vcpuid(unit);
 
     if (!vcpu) {
-        hax_error("HAX VM 'hax_vm%02d/vcpu%02d' is not ready\n", vm_id, vcpu_id);
+        hax_error("HAX VCPU 'hax_vm%02d/vcpu%02d' is not ready\n", vm_id, vcpu_id);
         return ENODEV;
     }
 

@@ -38,6 +38,7 @@
 #include <sys/module.h>
 
 #include "../../core/include/hax_core_interface.h"
+#include "../../core/include/config.h"
 
 extern struct cfdriver hax_vm_cd;
 extern struct cfdriver hax_vcpu_cd;
@@ -84,7 +85,7 @@ int hax_vcpu_create_host(struct vcpu_t *cvcpu, void *vm_host, int vm_id,
     struct hax_vcpu_softc *sc;
     devminor_t minor;
 
-    minor = vm_id * HAX_MAX_CPUS + vcpu_id;
+    minor = vm_id * HAX_MAX_VCPUS + vcpu_id;
     sc = device_lookup_private(&hax_vcpu_cd, minor);
     if (!sc) {
         hax_error("device lookup for hax_vcpu failed (minor %u)\n", minor);
@@ -111,7 +112,7 @@ int hax_vcpu_destroy_host(struct vcpu_t *cvcpu, void *vcpu_host)
 
     vcpu = (hax_vcpu_netbsd_t *)vcpu_host;
 
-    minor = vcpu->vm->id * HAX_MAX_CPUS + vcpu->id;
+    minor = vcpu->vm->id * HAX_MAX_VCPUS + vcpu->id;
     sc = device_lookup_private(&hax_vcpu_cd, minor);
     if (!sc) {
         hax_error("device lookup for hax_vcpu failed (minor %u)\n", minor);
